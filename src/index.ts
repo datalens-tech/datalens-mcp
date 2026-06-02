@@ -1,52 +1,44 @@
 import path from "path";
 
 import dotenv from "dotenv";
-import { NodeKit } from "@gravity-ui/nodekit";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-// Load .env before NodeKit reads process.env for the configs.
-dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
+dotenv.config({ path: path.resolve(__dirname, "..", ".env"), quiet: true });
 
 import { loadConfig, fetchOpenAPISpec, collectTools } from "./components/mcp";
-import { getApp } from "./app";
+import { registerLazyMetaTools } from "./components/mcp/meta-tools";
+
+const MCP_SERVER_NAME = "datalens-public-api";
+const MCP_SERVER_VERSION = "0.1.0";
 
 async function main() {
-  const nodekit = new NodeKit({
-    // src/configs/ in dev (ts-node), dist/configs/ in prod (node dist/index.js)
-    configsPath: path.resolve(__dirname, "configs"),
-  });
-
-  const config = loadConfig(nodekit.config);
-
-  nodekit.ctx.log("Config loaded", {
-    apiUrl: config.apiUrl,
-    schemaUrl: config.schemaUrl,
-    apiVersion: config.apiVersion,
-    hasToken: Boolean(config.apiToken),
-    extraHeaders: Object.keys(config.extraHeaders),
-  });
-
-  nodekit.ctx.log("Fetching OpenAPI schema", { url: config.schemaUrl });
+  const config = loadConfig();
 
   let tools;
   try {
     const spec = await fetchOpenAPISpec(config);
     tools = collectTools(spec, config);
   } catch (err) {
-    nodekit.ctx.logError("Failed to load OpenAPI schema", err as Error);
+    console.error("Failed to load OpenAPI schema", err);
     process.exit(1);
   }
 
-  nodekit.ctx.log("MCP tools loaded", {
-    count: tools.length,
-    excludedTags: config.excludedTags,
-  });
+  const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
+  const server = new Server(
+    { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
+    { capabilities: { tools: {} } },
+  );
 
-  const app = getApp(nodekit, { tools });
-  app.run();
+  registerLazyMetaTools({ server, tools, toolsByName });
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+
+  console.error("DataLens MCP server running on stdio");
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error("Failed to start datalens-mcp:", err);
   process.exit(1);
 });

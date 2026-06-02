@@ -15,8 +15,6 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@gravity-ui/expresskit": "^3.1.0",
-    "@gravity-ui/nodekit": "^2.10.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "dotenv": "^17.4.2"
   },

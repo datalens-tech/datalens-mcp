@@ -59,7 +59,7 @@ const buildRequestHeaders = (config: Config): Record<string, string> => {
     ...config.extraHeaders,
   };
   if (config.apiToken) {
-    headers["Authorization"] = `Bearer ${config.apiToken}`;
+    headers["Authorization"] = config.apiToken;
   }
   return headers;
 };
@@ -141,8 +141,6 @@ export const collectTools = (
         description: toolDescription,
         rawInputSchema,
         invoke: async (args) => {
-          console.log(headers);
-
           const res = await fetch(requestUrl, {
             method: requestMethod,
             headers,
