@@ -1,11 +1,8 @@
 name: Lint, Typecheck
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
-
+  
 jobs:
   lint-and-typecheck:
     name: Lint & TypeScript check
