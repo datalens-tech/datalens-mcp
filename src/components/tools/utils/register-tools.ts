@@ -23,9 +23,9 @@ export const registerTools = ({server, tools}: {server: Server; tools: Collected
         tools: TOOL_DEFS,
     }));
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
+    const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Record<string, unknown>;
 
