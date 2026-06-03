@@ -6,7 +6,7 @@ export type JsonSchema = {
     [key: string]: unknown;
 };
 
-type OpenAPIOperation = {
+export type OpenAPIOperation = {
     operationId?: string;
     summary?: string;
     description?: string;

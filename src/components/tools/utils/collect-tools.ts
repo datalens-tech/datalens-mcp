@@ -1,10 +1,9 @@
 import {withRequestTimeout} from '../../../utils';
 import type {AppConfig} from '../../config';
-import type {JsonSchema, OpenAPISpec} from '../../openapi';
+import type {JsonSchema, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {inlineRefs} from '../../openapi';
 import type {CollectedTool} from '../types';
 
-// API has only post methods
 const HTTP_POST_METHOD = 'POST';
 
 const EMPTY_OBJECT_SCHEMA: JsonSchema = {
@@ -12,11 +11,8 @@ const EMPTY_OBJECT_SCHEMA: JsonSchema = {
     properties: {},
 };
 
-// Derives a tool name from the URL path
-// /rpc/getWorkbookEntries  → "getWorkbookEntries"
-const toolNameFromPath = (path: string): string => {
-    return path.split('/').filter(Boolean).at(-1) ?? '';
-};
+// /rpc/getWorkbookEntries → "getWorkbookEntries"
+const toolNameFromPath = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? '';
 
 const buildRequestHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
@@ -30,73 +26,79 @@ const buildRequestHeaders = (config: AppConfig): Record<string, string> => {
     return headers;
 };
 
-export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedTool[] => {
-    const components = spec.components?.schemas;
-    const headers = buildRequestHeaders(config);
-    const tools: CollectedTool[] = [];
+const buildDescription = (operation: OpenAPIOperation, name: string): string =>
+    [
+        operation.deprecated ? '[deprecated] ' : '',
+        operation.summary ?? name,
+        operation.description ? ` — ${operation.description}` : '',
+    ]
+        .filter(Boolean)
+        .join('');
 
-    for (const [path, pathItem] of Object.entries(spec.paths ?? {})) {
-        const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
-        if (!operation) {
-            continue;
+const parseResponse = async (res: Response): Promise<unknown> => {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
+};
+
+const buildInvokeFn =
+    (requestUrl: string, path: string, headers: Record<string, string>): CollectedTool['invoke'] =>
+    async (args) => {
+        const res = await withRequestTimeout(`${HTTP_POST_METHOD} ${requestUrl}`, (signal) =>
+            fetch(requestUrl, {
+                method: HTTP_POST_METHOD,
+                headers,
+                body: JSON.stringify(args),
+                signal,
+            }),
+        );
+
+        const data = await parseResponse(res);
+
+        if (!res.ok) {
+            const detail = typeof data === 'string' ? data : JSON.stringify(data);
+            throw new Error(
+                `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
+            );
         }
 
-        const {summary, description, deprecated} = operation;
+        return data;
+    };
 
-        const name = toolNameFromPath(path);
+const buildTool = (
+    path: string,
+    operation: OpenAPIOperation,
+    components: OpenAPISpec['components'],
+    config: AppConfig,
+    headers: Record<string, string>,
+): CollectedTool => {
+    const name = toolNameFromPath(path);
+    const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+    const rawInputSchema = bodySchema
+        ? inlineRefs(bodySchema, components?.schemas)
+        : EMPTY_OBJECT_SCHEMA;
+    const requestUrl = `${config.apiUrl}${path}`;
 
-        const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+    return {
+        name,
+        summary: operation.summary ?? name,
+        description: buildDescription(operation, name),
+        rawInputSchema,
+        invoke: buildInvokeFn(requestUrl, path, headers),
+    };
+};
 
-        const rawInputSchema = bodySchema
-            ? inlineRefs(bodySchema, components)
-            : EMPTY_OBJECT_SCHEMA;
+export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedTool[] => {
+    const headers = buildRequestHeaders(config);
 
-        const toolDescription = [
-            deprecated ? '[deprecated] ' : '',
-            summary ?? name,
-            description ? ` — ${description}` : '',
-        ]
-            .filter(Boolean)
-            .join('');
-
-        const requestUrl = `${config.apiUrl}${path}`;
-
-        tools.push({
-            name,
-            summary: summary ?? name,
-            description: toolDescription,
-            rawInputSchema,
-            invoke: async (args) => {
-                const res = await withRequestTimeout(
-                    `${HTTP_POST_METHOD} ${requestUrl}`,
-                    (signal) =>
-                        fetch(requestUrl, {
-                            method: HTTP_POST_METHOD,
-                            headers,
-                            body: JSON.stringify(args),
-                            signal,
-                        }),
-                );
-
-                const text = await res.text();
-                let data: unknown;
-                try {
-                    data = JSON.parse(text);
-                } catch {
-                    data = text;
-                }
-
-                if (!res.ok) {
-                    const detail = typeof data === 'string' ? data : JSON.stringify(data);
-                    throw new Error(
-                        `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
-                    );
-                }
-
-                return data;
-            },
-        });
-    }
-
-    return tools;
+    return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
+        const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
+        if (!operation) {
+            return [];
+        }
+        return [buildTool(path, operation, spec.components, config, headers)];
+    });
 };
