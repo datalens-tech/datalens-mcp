@@ -1,7 +1,8 @@
+import {withRequestTimeout} from '../../../utils';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, OpenAPISpec} from '../../openapi';
 import {inlineRefs} from '../../openapi';
-import {CollectedTool} from '../types';
+import type {CollectedTool} from '../types';
 
 // API has only post methods
 const HTTP_POST_METHOD = 'POST';
@@ -66,11 +67,16 @@ export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedToo
             description: toolDescription,
             rawInputSchema,
             invoke: async (args) => {
-                const res = await fetch(requestUrl, {
-                    method: HTTP_POST_METHOD,
-                    headers,
-                    body: JSON.stringify(args),
-                });
+                const res = await withRequestTimeout(
+                    `${HTTP_POST_METHOD} ${requestUrl}`,
+                    (signal) =>
+                        fetch(requestUrl, {
+                            method: HTTP_POST_METHOD,
+                            headers,
+                            body: JSON.stringify(args),
+                            signal,
+                        }),
+                );
 
                 const text = await res.text();
                 let data: unknown;

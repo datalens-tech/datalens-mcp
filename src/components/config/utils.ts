@@ -6,7 +6,7 @@ const parseExtraHeaders = (headersStr: string | undefined): Record<string, strin
         return result;
     }
 
-    for (const pair of headersStr.split(',')) {
+    for (const pair of headersStr.split(';')) {
         const eqIdx = pair.indexOf('=');
         if (eqIdx > 0) {
             result[pair.slice(0, eqIdx).trim()] = pair.slice(eqIdx + 1).trim();

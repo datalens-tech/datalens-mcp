@@ -5,7 +5,9 @@ import dotenv from 'dotenv';
 
 import {createApp} from './app';
 
-dotenv.config({path: path.resolve(__dirname, '..', '.env'), quiet: true});
+if (process.env.NODE_ENV === 'development') {
+    dotenv.config({path: path.resolve(__dirname, '..', '.env'), quiet: true});
+}
 
 const main = async () => {
     console.error('Starting DataLens MCP server...');
