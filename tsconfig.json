@@ -1,17 +1,17 @@
 {
+  "extends": "@gravity-ui/tsconfig/tsconfig",
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "rootDir": "src",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
+    "sourceMap": true,
     "declaration": true,
-    "sourceMap": true
+    "types": ["node"]
   },
-  "ts-node": { "files": true },
+  "ts-node": {"files": true},
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
