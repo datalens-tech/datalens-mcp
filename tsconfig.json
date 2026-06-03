@@ -9,7 +9,6 @@
     "noUnusedLocals": false,
     "sourceMap": true,
     "declaration": true,
-    "types": ["node"]
   },
   "ts-node": {"files": true},
   "include": ["src/**/*"],
