@@ -1,2 +1,2 @@
-export {inlineRefs} from './inline-refs';
+export {bundleRefs} from './bundle-refs';
 export {fetchOpenAPISpec} from './fetch-openapi-spec';

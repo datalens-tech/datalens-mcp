@@ -1,7 +1,7 @@
 import {withRequestTimeout} from '../../../utils';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, OpenAPIOperation, OpenAPISpec} from '../../openapi';
-import {inlineRefs} from '../../openapi';
+import {bundleRefs} from '../../openapi';
 import type {CollectedTool} from '../types';
 
 const HTTP_POST_METHOD = 'POST';
@@ -20,8 +20,8 @@ const buildRequestHeaders = (config: AppConfig): Record<string, string> => {
         'x-dl-api-version': config.apiVersion,
         ...config.extraHeaders,
     };
-    if (config.apiToken) {
-        headers['Authorization'] = config.apiToken;
+    if (config.authHeader) {
+        headers['Authorization'] = config.authHeader;
     }
     return headers;
 };
@@ -78,7 +78,7 @@ const buildTool = (
     const name = toolNameFromPath(path);
     const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
     const rawInputSchema = bodySchema
-        ? inlineRefs(bodySchema, components?.schemas)
+        ? bundleRefs(bodySchema, components?.schemas)
         : EMPTY_OBJECT_SCHEMA;
     const requestUrl = `${config.apiUrl}${path}`;
 

@@ -1,6 +1,8 @@
 import {AppConfig} from './types';
 
-const parseExtraHeaders = (headersStr: string | undefined): Record<string, string> => {
+const DEFAULT_MAX_RESPONSE_CHARS = 100_000;
+
+export const parseExtraHeaders = (headersStr: string | undefined): Record<string, string> => {
     const result: Record<string, string> = {};
     if (!headersStr) {
         return result;
@@ -16,6 +18,14 @@ const parseExtraHeaders = (headersStr: string | undefined): Record<string, strin
     return result;
 };
 
+const parseMaxResponseChars = (raw: string | undefined): number => {
+    if (!raw) {
+        return DEFAULT_MAX_RESPONSE_CHARS;
+    }
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_MAX_RESPONSE_CHARS;
+};
+
 export const loadConfig = (): AppConfig => {
     if (!process.env.DATALENS_API_URL) {
         throw new Error('DATALENS_API_URL env is not set');
@@ -25,9 +35,10 @@ export const loadConfig = (): AppConfig => {
 
     return {
         apiUrl,
-        apiToken: process.env.DATALENS_API_TOKEN,
+        authHeader: process.env.DATALENS_API_AUTH_HEADER,
         extraHeaders: parseExtraHeaders(process.env.DATALENS_HEADERS),
         schemaUrl: process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}/json/`,
         apiVersion: process.env.DATALENS_API_VERSION ?? 'latest',
+        maxResponseChars: parseMaxResponseChars(process.env.DATALENS_MAX_RESPONSE_CHARS),
     };
 };

@@ -19,7 +19,7 @@ export const createApp = async (): Promise<Server> => {
         {capabilities: {tools: {}}},
     );
 
-    registerTools({server, tools});
+    registerTools({server, tools, maxResponseChars: config.maxResponseChars});
 
     return server;
 };

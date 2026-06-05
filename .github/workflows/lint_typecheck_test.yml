@@ -1,11 +1,11 @@
-name: Lint, Typecheck
+name: Lint, Typecheck, Test
 
 on:
   pull_request:
   
 jobs:
   lint-and-typecheck:
-    name: Lint & TypeScript check
+    name: Lint & TS check & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test
+        run: npm test
