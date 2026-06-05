@@ -96,7 +96,7 @@ export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedToo
 
     return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
         const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
-        if (!operation) {
+        if (!operation || operation['x-mcp-disabled']) {
             return [];
         }
         return [buildTool(path, operation, spec.components, config, headers)];

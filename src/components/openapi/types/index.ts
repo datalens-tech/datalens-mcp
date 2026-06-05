@@ -11,6 +11,7 @@ export type OpenAPIOperation = {
     summary?: string;
     description?: string;
     deprecated?: boolean;
+    'x-mcp-disabled'?: boolean;
     requestBody?: {
         content?: {
             'application/json'?: {

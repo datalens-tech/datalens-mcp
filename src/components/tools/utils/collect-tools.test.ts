@@ -28,6 +28,20 @@ describe('collectTools', () => {
         expect(tools[0].name).toBe('getWorkbookEntries');
     });
 
+    it('skips operations flagged with x-mcp-disabled', () => {
+        const spec: OpenAPISpec = {
+            paths: {
+                '/rpc/getQLChart': {post: {summary: 'Get'}},
+                '/rpc/createQLChart': {post: {summary: 'Create', 'x-mcp-disabled': true}},
+            },
+        };
+
+        const tools = collectTools(spec, config);
+
+        expect(tools).toHaveLength(1);
+        expect(tools[0].name).toBe('getQLChart');
+    });
+
     it('derives the command name from the last path segment', () => {
         const spec: OpenAPISpec = {
             paths: {'/api/v1/rpc/createDataset': {post: {}}},
