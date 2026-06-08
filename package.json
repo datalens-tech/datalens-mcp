@@ -3,14 +3,19 @@
   "version": "0.1.0",
   "description": "MCP server for DataLens public API",
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "bin": {
-    "datalens-mcp": "dist/index.js"
+    "datalens-mcp": "./dist/index.js"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "dev": "NODE_ENV=development ts-node src/index.ts",
     "start": "NODE_ENV=production node dist/index.js",
     "typecheck": "tsc --noEmit",
