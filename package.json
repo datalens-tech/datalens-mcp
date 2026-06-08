@@ -1,0 +1,54 @@
+{
+  "name": "datalens-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for DataLens public API",
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "bin": {
+    "datalens-mcp": "./dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "dev": "NODE_ENV=development ts-node src/index.ts",
+    "start": "NODE_ENV=production node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint:prettier": "prettier --check 'src/**/*.ts'",
+    "lint:js": "eslint \"src/**/*.ts\" --quiet",
+    "lint": "npm run lint:prettier && npm run lint:js",
+    "format": "prettier --write 'src/**/*.ts'",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "eslint --fix --quiet",
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^4.3.1",
+    "@gravity-ui/prettier-config": "^1.1.1",
+    "@gravity-ui/tsconfig": "^1.0.0",
+    "@types/node": "^20.19.41",
+    "eslint": "^9.39.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.8"
+  }
+}
