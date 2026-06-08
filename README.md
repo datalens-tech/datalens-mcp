@@ -37,7 +37,24 @@ npm run build
 
 ## Run
 
-The server speaks MCP over stdio. Configure it in your MCP client, for example:
+The server speaks MCP over stdio. You can run it with `npx` from your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "datalens": {
+      "command": "npx",
+      "args": ["-y", "datalens-mcp@latest"],
+      "env": {
+        "DATALENS_API_URL": "https://datalens.example.com",
+        "DATALENS_API_AUTH_HEADER": "Bearer <token>"
+      }
+    }
+  }
+}
+```
+
+For a local build, configure your MCP client to run the compiled entrypoint directly:
 
 ```json
 {
