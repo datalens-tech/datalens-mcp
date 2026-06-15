@@ -9,7 +9,7 @@ export type YcIamConfig = {
 /**
  * DataLens installation type, decides how requests are authorized:
  * - `cloud` (default): Authorization is an IAM token fetched via the `yc` CLI.
- * - `yandex`: Authorization is taken verbatim from DATALENS_API_AUTH_HEADER.
+ * - `yandex`: Authorization is taken from DATALENS_API_AUTH_HEADER.
  */
 export type Installation = 'cloud' | 'yandex';
 

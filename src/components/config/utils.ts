@@ -15,7 +15,10 @@ const parseMaxResponseChars = (raw: string | undefined): number => {
 const parseInstallation = (raw: string | undefined): Installation =>
     raw?.trim().toLowerCase() === 'yandex' ? 'yandex' : DEFAULT_INSTALLATION;
 
-const loadYcIamConfig = (): YcIamConfig => ({
+const parseBool = (raw: string | undefined): boolean =>
+    raw === '1' || raw?.toLowerCase() === 'true';
+
+const getYcIamConfig = (): YcIamConfig => ({
     profile: process.env.DATALENS_YC_PROFILE || undefined,
     bin: process.env.DATALENS_YC_BIN || DEFAULT_YC_BIN,
 });
@@ -34,12 +37,18 @@ export const loadConfig = (): AppConfig => {
         throw new Error('DATALENS_ORG_ID env is not set (required for the cloud installation)');
     }
 
+    let ycIam: YcIamConfig | undefined;
+
+    if (isCloud && !parseBool(process.env.DATALENS_YC_STATIC_AUTH)) {
+        ycIam = getYcIamConfig();
+    }
+
     return {
         apiUrl,
         installation,
         orgId: isCloud ? orgId : undefined,
         authHeader: process.env.DATALENS_API_AUTH_HEADER,
-        ycIam: isCloud ? loadYcIamConfig() : undefined,
+        ycIam,
         schemaUrl: process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}/json/`,
         apiVersion: process.env.DATALENS_API_VERSION ?? 'latest',
         maxResponseChars: parseMaxResponseChars(process.env.DATALENS_MAX_RESPONSE_CHARS),

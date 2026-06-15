@@ -11,6 +11,7 @@ describe('loadConfig', () => {
         'DATALENS_MAX_RESPONSE_CHARS',
         'DATALENS_INSTALLATION',
         'DATALENS_ORG_ID',
+        'DATALENS_YC_STATIC_AUTH',
         'DATALENS_YC_PROFILE',
         'DATALENS_YC_BIN',
     ];
@@ -102,6 +103,28 @@ describe('loadConfig', () => {
         expect(config.installation).toBe('yandex');
         expect(config.ycIam).toBeUndefined();
         expect(config.authHeader).toBe('Bearer token');
+    });
+
+    it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=true', () => {
+        process.env.DATALENS_API_URL = 'http://localhost:8080';
+        process.env.DATALENS_ORG_ID = 'org1';
+        process.env.DATALENS_YC_STATIC_AUTH = 'true';
+        process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
+        const config = loadConfig();
+
+        expect(config.installation).toBe('cloud');
+        expect(config.authHeader).toBe('Bearer static-token');
+        expect(config.ycIam).toBeUndefined();
+    });
+
+    it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=1', () => {
+        process.env.DATALENS_API_URL = 'http://localhost:8080';
+        process.env.DATALENS_ORG_ID = 'org1';
+        process.env.DATALENS_YC_STATIC_AUTH = '1';
+        process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
+        const config = loadConfig();
+
+        expect(config.ycIam).toBeUndefined();
     });
 
     it('honours ycIam overrides on the cloud installation', () => {

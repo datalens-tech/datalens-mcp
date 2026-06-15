@@ -19,25 +19,51 @@ needs → `invoke_command`.
 
 All configuration is via environment variables (see [.env.example](.env.example)):
 
-| Variable                      | Required | Default                    | Description                                                                    |
-| ----------------------------- | -------- | -------------------------- | ------------------------------------------------------------------------------ |
-| `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                           |
-| `DATALENS_ORG_ID`             | ✅       | —                          | Organization id, sent in the `x-dl-org-id` header.                            |
-| `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile. |
-| `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                       |
-| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                  |
-| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                         |
-| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.           |
+| Variable                      | Required | Default                    | Description                                                                                        |
+| ----------------------------- | -------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                                               |
+| `DATALENS_ORG_ID`             | ✅       | —                          | Organization id, sent in the `x-dl-org-id` header.                                                |
+| `DATALENS_YC_STATIC_AUTH`     |          | —                          | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                   |
+| `DATALENS_API_AUTH_HEADER`    |          | —                          | Static value for the `Authorization` header (e.g. `Bearer <token>`). Used when `DATALENS_YC_STATIC_AUTH` is set. |
+| `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                    |
+| `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                                           |
+| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                      |
+| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                                             |
+| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.                               |
 
 ### Authorization
 
-The server runs `yc iam create-token` on startup and sends the result as
-`Authorization: Bearer <token>`. The token is re-fetched every
-`DATALENS_YC_IAM_REFRESH_SEC` seconds, so a long-running server keeps a valid
-token without a restart. The `yc` CLI must be installed and authenticated in the
-environment where the server runs (it must be on `PATH`, or point
-`DATALENS_YC_BIN` at it). Any extra environment variables you pass to the server
-are inherited by the `yc` subprocess.
+#### Recommended: IAM token via `yc` (default)
+
+The server calls `yc iam create-token` on startup and sends the result as
+`Authorization: Bearer <token>`. The token is automatically refreshed every hour,
+so a long-running server never sends an expired token.
+
+**Setup:**
+
+1. [Install the `yc` CLI](https://yandex.cloud/docs/cli/quickstart) and run `yc init` to authenticate.
+2. Pass `DATALENS_API_URL` and `DATALENS_ORG_ID` — that's all.
+3. Optionally set `DATALENS_YC_PROFILE` to the profile name you want to use.
+   If omitted, the currently active `yc` profile is used.
+
+The `yc` binary must be on `PATH`, or point `DATALENS_YC_BIN` at its full path.
+Any extra environment variables passed to the server are inherited by the `yc` subprocess.
+
+#### Alternative: static token (`DATALENS_YC_STATIC_AUTH`)
+
+If you prefer to manage the IAM token yourself, set `DATALENS_YC_STATIC_AUTH=1`
+and put the token in `DATALENS_API_AUTH_HEADER`:
+
+```
+DATALENS_YC_STATIC_AUTH=1
+DATALENS_API_AUTH_HEADER=Bearer <iam-token>
+```
+
+The token is sent as-is on every request. `yc` is never called.
+
+> **Note:** IAM tokens expire after 12 hours. With this approach you are
+> responsible for refreshing `DATALENS_API_AUTH_HEADER` and restarting the server
+> before the token expires.
 
 ## Install & build
 
