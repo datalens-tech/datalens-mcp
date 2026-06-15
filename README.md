@@ -55,7 +55,7 @@ and put the token in `DATALENS_API_AUTH_HEADER`:
 
 ```
 DATALENS_YC_STATIC_AUTH=1
-DATALENS_API_AUTH_HEADER=Bearer <iam-token>
+DATALENS_API_AUTH_HEADER="Bearer <iam-token>"
 ```
 
 The token is sent as-is on every request. `yc` is never called.
