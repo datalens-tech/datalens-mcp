@@ -103,8 +103,6 @@ Then point your client at the built file:
 }
 ```
 
-For local development with a `.env` file, run `npm run dev` instead of building.
-
 ## Configuration reference
 
 All configuration is via environment variables (see [.env.example](.env.example)):
