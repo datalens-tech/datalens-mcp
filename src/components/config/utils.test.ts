@@ -35,7 +35,16 @@ describe('loadConfig', () => {
         }
     });
 
-    it('throws when DATALENS_API_URL is missing', () => {
+    it('defaults the api url to the public cloud endpoint when DATALENS_API_URL is missing', () => {
+        process.env.DATALENS_ORG_ID = 'org1';
+        const config = loadConfig();
+
+        expect(config.apiUrl).toBe('https://api.datalens.tech');
+        expect(config.schemaUrl).toBe('https://api.datalens.tech/json/');
+    });
+
+    it('throws when DATALENS_API_URL is missing on the yandex installation', () => {
+        process.env.DATALENS_INSTALLATION = 'yandex';
         expect(() => loadConfig()).toThrow('DATALENS_API_URL');
     });
 

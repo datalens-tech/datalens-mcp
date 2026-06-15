@@ -2,6 +2,7 @@ import {AppConfig, Installation, YcIamConfig} from './types';
 
 const DEFAULT_MAX_RESPONSE_CHARS = 100_000;
 const DEFAULT_INSTALLATION: Installation = 'cloud';
+const DEFAULT_CLOUD_API_URL = 'https://api.datalens.tech';
 const DEFAULT_YC_BIN = 'yc';
 
 const parseMaxResponseChars = (raw: string | undefined): number => {
@@ -24,14 +25,14 @@ const getYcIamConfig = (): YcIamConfig => ({
 });
 
 export const loadConfig = (): AppConfig => {
-    if (!process.env.DATALENS_API_URL) {
-        throw new Error('DATALENS_API_URL env is not set');
-    }
-
-    const apiUrl = process.env.DATALENS_API_URL.replace(/\/$/, '');
     const installation = parseInstallation(process.env.DATALENS_INSTALLATION);
-
     const isCloud = installation === 'cloud';
+
+    if (!isCloud && !process.env.DATALENS_API_URL) {
+        throw new Error('DATALENS_API_URL env is not set (required for the yandex installation)');
+    }
+    const apiUrl = (process.env.DATALENS_API_URL || DEFAULT_CLOUD_API_URL).replace(/\/$/, '');
+
     const orgId = process.env.DATALENS_ORG_ID;
     if (isCloud && !orgId) {
         throw new Error('DATALENS_ORG_ID env is not set (required for the cloud installation)');
