@@ -79,7 +79,7 @@ No install or build step — `npx` fetches the published package on demand:
 
 ### From a local build
 
-Use this if you've cloned the repo (e.g. to run a patched version). **Build it
+Use this if you've cloned the repo. **Build it
 first:**
 
 ```bash
