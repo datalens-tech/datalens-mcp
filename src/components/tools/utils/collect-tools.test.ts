@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
+import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
 import type {OpenAPISpec} from '../../openapi';
 
@@ -7,11 +8,13 @@ import {collectTools} from './collect-tools';
 
 const config: AppConfig = {
     apiUrl: 'http://localhost:8080',
-    extraHeaders: {},
+    installation: 'yandex',
     schemaUrl: 'http://localhost:8080/json/',
     apiVersion: 'latest',
     maxResponseChars: 100_000,
 };
+
+const authProvider: AuthProvider = {getAuthHeader: () => undefined};
 
 describe('collectTools', () => {
     it('collects only POST operations and ignores other methods', () => {
@@ -22,7 +25,7 @@ describe('collectTools', () => {
             },
         };
 
-        const tools = collectTools(spec, config);
+        const tools = collectTools(spec, config, authProvider);
 
         expect(tools).toHaveLength(1);
         expect(tools[0].name).toBe('getWorkbookEntries');
@@ -36,7 +39,7 @@ describe('collectTools', () => {
             },
         };
 
-        const tools = collectTools(spec, config);
+        const tools = collectTools(spec, config, authProvider);
 
         expect(tools).toHaveLength(1);
         expect(tools[0].name).toBe('getQLChart');
@@ -46,7 +49,7 @@ describe('collectTools', () => {
         const spec: OpenAPISpec = {
             paths: {'/api/v1/rpc/createDataset': {post: {}}},
         };
-        expect(collectTools(spec, config)[0].name).toBe('createDataset');
+        expect(collectTools(spec, config, authProvider)[0].name).toBe('createDataset');
     });
 
     it('builds a description from summary, description and deprecation flag', () => {
@@ -58,7 +61,7 @@ describe('collectTools', () => {
             },
         };
 
-        const [a, b, c] = collectTools(spec, config);
+        const [a, b, c] = collectTools(spec, config, authProvider);
 
         expect(a.description).toBe('Sum — Detail');
         expect(b.description).toBe('[deprecated] Old');
@@ -69,7 +72,7 @@ describe('collectTools', () => {
         const spec: OpenAPISpec = {
             paths: {'/rpc/noBody': {post: {}}},
         };
-        expect(collectTools(spec, config)[0].rawInputSchema).toEqual({
+        expect(collectTools(spec, config, authProvider)[0].rawInputSchema).toEqual({
             type: 'object',
             properties: {},
         });
@@ -95,7 +98,7 @@ describe('collectTools', () => {
             },
         };
 
-        const schema = collectTools(spec, config)[0].rawInputSchema;
+        const schema = collectTools(spec, config, authProvider)[0].rawInputSchema;
 
         expect(schema.$ref).toBe('#/$defs/Body');
         expect((schema.$defs as Record<string, unknown>).Body).toEqual(

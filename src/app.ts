@@ -1,5 +1,6 @@
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 
+import {createAuthProvider} from './components/auth';
 import {loadConfig} from './components/config';
 import {fetchOpenAPISpec} from './components/openapi';
 import {collectTools, registerTools} from './components/tools';
@@ -10,9 +11,11 @@ const MCP_SERVER_VERSION = '0.1.0';
 export const createApp = async (): Promise<Server> => {
     const config = loadConfig();
 
+    const authProvider = await createAuthProvider(config);
+
     const spec = await fetchOpenAPISpec(config);
 
-    const tools = collectTools(spec, config);
+    const tools = collectTools(spec, config, authProvider);
 
     const server = new Server(
         {name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION},

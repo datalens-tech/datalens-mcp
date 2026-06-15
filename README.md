@@ -19,14 +19,26 @@ needs → `invoke_command`.
 
 All configuration is via environment variables (see [.env.example](.env.example)):
 
-| Variable                      | Required | Default                    | Description                                                                                             |
-| ----------------------------- | -------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                                                    |
-| `DATALENS_API_AUTH_HEADER`    |          | —                          | Value sent verbatim in the `Authorization` header. Include the scheme yourself (e.g. `Bearer <token>`). |
-| `DATALENS_HEADERS`            |          | —                          | Extra headers on every request, as `KEY=VALUE` pairs separated by `;`.                                  |
-| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                           |
-| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                                                  |
-| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.                                    |
+| Variable                      | Required | Default                    | Description                                                                    |
+| ----------------------------- | -------- | -------------------------- | ------------------------------------------------------------------------------ |
+| `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                           |
+| `DATALENS_ORG_ID`             | ✅       | —                          | Organization id, sent in the `x-dl-org-id` header.                            |
+| `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile. |
+| `DATALENS_YC_IAM_REFRESH_SEC` |          | `3600`                     | How often to refresh the IAM token, in seconds.                                |
+| `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                       |
+| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                  |
+| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                         |
+| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.           |
+
+### Authorization
+
+The server runs `yc iam create-token` on startup and sends the result as
+`Authorization: Bearer <token>`. The token is re-fetched every
+`DATALENS_YC_IAM_REFRESH_SEC` seconds, so a long-running server keeps a valid
+token without a restart. The `yc` CLI must be installed and authenticated in the
+environment where the server runs (it must be on `PATH`, or point
+`DATALENS_YC_BIN` at it). Any extra environment variables you pass to the server
+are inherited by the `yc` subprocess.
 
 ## Install & build
 
@@ -47,24 +59,7 @@ The server speaks MCP over stdio. You can run it with `npx` from your MCP client
       "args": ["-y", "datalens-mcp@latest"],
       "env": {
         "DATALENS_API_URL": "https://datalens.example.com",
-        "DATALENS_API_AUTH_HEADER": "Bearer <token>"
-      }
-    }
-  }
-}
-```
-
-For a local build, configure your MCP client to run the compiled entrypoint directly:
-
-```json
-{
-  "mcpServers": {
-    "datalens": {
-      "command": "node",
-      "args": ["/absolute/path/to/datalens-mcp/dist/index.js"],
-      "env": {
-        "DATALENS_API_URL": "https://datalens.example.com",
-        "DATALENS_API_AUTH_HEADER": "Bearer <token>"
+        "DATALENS_ORG_ID": "<org-id>"
       }
     }
   }
