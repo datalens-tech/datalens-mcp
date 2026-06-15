@@ -67,14 +67,26 @@ describe('createYcIamAuthProvider', () => {
         expect(provider.getAuthHeader()).toBe('Bearer initial');
     });
 
-    it('propagates a failure of the initial fetch', async () => {
-        execFileMock.mockRejectedValue(new Error('yc not found'));
+    it('throws a helpful message when the yc binary is not found', async () => {
+        const enoent = Object.assign(new Error('spawn yc ENOENT'), {code: 'ENOENT'});
+        execFileMock.mockRejectedValue(enoent);
 
-        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow('yc not found');
+        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow('yc CLI not found');
+        await expect(createYcIamAuthProvider({...baseConfig, bin: '/custom/yc'})).rejects.toThrow(
+            '/custom/yc',
+        );
+    });
+
+    it('propagates a non-ENOENT failure of the initial fetch', async () => {
+        execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''}); // checkYcBin succeeds
+        execFileMock.mockRejectedValueOnce(new Error('auth error'));
+
+        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow('auth error');
     });
 
     it('refreshes the token on the configured interval', async () => {
         vi.useFakeTimers();
+        execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''}); // checkYcBin (version)
         execFileMock.mockResolvedValueOnce({stdout: 'first', stderr: ''});
 
         const provider = await createYcIamAuthProvider(baseConfig);
@@ -89,6 +101,7 @@ describe('createYcIamAuthProvider', () => {
     it('keeps the previous token when a refresh fails', async () => {
         vi.useFakeTimers();
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''}); // checkYcBin (version)
         execFileMock.mockResolvedValueOnce({stdout: 'good', stderr: ''});
 
         const provider = await createYcIamAuthProvider(baseConfig);

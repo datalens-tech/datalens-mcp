@@ -9,6 +9,18 @@ const execFileAsync = promisify(execFile);
 
 const REFRESH_INTERVAL_MS = 3_600_000;
 
+const checkYcBin = async (bin: string): Promise<void> => {
+    try {
+        await execFileAsync(bin, ['version']);
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(
+                `yc CLI not found at "${bin}". Install it (https://yandex.cloud/docs/cli/quickstart) or set DATALENS_YC_BIN to the full path.`,
+            );
+        }
+    }
+};
+
 /** Runs `yc iam create-token` and returns the raw IAM token. */
 export const fetchYcToken = async (config: YcIamConfig): Promise<string> => {
     const args = ['iam', 'create-token'];
@@ -30,6 +42,7 @@ export const fetchYcToken = async (config: YcIamConfig): Promise<string> => {
  * failures are logged and the previous token is kept.
  */
 export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<AuthProvider> => {
+    await checkYcBin(config.bin);
     let authHeader = `Bearer ${await fetchYcToken(config)}`;
 
     const refresh = async () => {
