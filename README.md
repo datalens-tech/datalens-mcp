@@ -24,7 +24,6 @@ All configuration is via environment variables (see [.env.example](.env.example)
 | `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                           |
 | `DATALENS_ORG_ID`             | ✅       | —                          | Organization id, sent in the `x-dl-org-id` header.                            |
 | `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile. |
-| `DATALENS_YC_IAM_REFRESH_SEC` |          | `3600`                     | How often to refresh the IAM token, in seconds.                                |
 | `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                       |
 | `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                  |
 | `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                         |

@@ -16,7 +16,6 @@ vi.mock('child_process', async () => {
 import {createYcIamAuthProvider, fetchYcToken} from './yc-iam-auth-provider';
 
 const baseConfig: YcIamConfig = {
-    refreshIntervalMs: 60_000,
     bin: 'yc',
 };
 
@@ -82,7 +81,7 @@ describe('createYcIamAuthProvider', () => {
         expect(provider.getAuthHeader()).toBe('Bearer first');
 
         execFileMock.mockResolvedValueOnce({stdout: 'second', stderr: ''});
-        await vi.advanceTimersByTimeAsync(baseConfig.refreshIntervalMs);
+        await vi.advanceTimersByTimeAsync(3_600_000);
 
         expect(provider.getAuthHeader()).toBe('Bearer second');
     });
@@ -95,7 +94,7 @@ describe('createYcIamAuthProvider', () => {
         const provider = await createYcIamAuthProvider(baseConfig);
 
         execFileMock.mockRejectedValueOnce(new Error('transient'));
-        await vi.advanceTimersByTimeAsync(baseConfig.refreshIntervalMs);
+        await vi.advanceTimersByTimeAsync(3_600_000);
 
         expect(provider.getAuthHeader()).toBe('Bearer good');
         expect(errorSpy).toHaveBeenCalled();

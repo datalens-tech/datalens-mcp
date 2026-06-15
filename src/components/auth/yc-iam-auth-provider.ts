@@ -7,6 +7,8 @@ import type {AuthProvider} from './types';
 
 const execFileAsync = promisify(execFile);
 
+const REFRESH_INTERVAL_MS = 3_600_000;
+
 /** Runs `yc iam create-token` and returns the raw IAM token. */
 export const fetchYcToken = async (config: YcIamConfig): Promise<string> => {
     const args = ['iam', 'create-token'];
@@ -38,7 +40,7 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
         }
     };
 
-    const timer = setInterval(refresh, config.refreshIntervalMs);
+    const timer = setInterval(refresh, REFRESH_INTERVAL_MS);
     // Don't let the refresh timer keep the process alive on its own.
     timer.unref();
 

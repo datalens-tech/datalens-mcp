@@ -2,8 +2,6 @@
 export type YcIamConfig = {
     /** `yc` profile name passed as `--profile <name>` (uses the active profile when omitted) */
     profile?: string;
-    /** How often to re-fetch the IAM token, in milliseconds */
-    refreshIntervalMs: number;
     /** Path to the `yc` binary */
     bin: string;
 };

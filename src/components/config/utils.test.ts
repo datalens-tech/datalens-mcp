@@ -12,7 +12,6 @@ describe('loadConfig', () => {
         'DATALENS_INSTALLATION',
         'DATALENS_ORG_ID',
         'DATALENS_YC_PROFILE',
-        'DATALENS_YC_IAM_REFRESH_SEC',
         'DATALENS_YC_BIN',
     ];
     let saved: Record<string, string | undefined>;
@@ -59,7 +58,6 @@ describe('loadConfig', () => {
         expect(config.orgId).toBe('org1');
         expect(config.ycIam).toEqual({
             profile: undefined,
-            refreshIntervalMs: 3_600_000,
             bin: 'yc',
         });
     });
@@ -111,19 +109,10 @@ describe('loadConfig', () => {
         process.env.DATALENS_ORG_ID = 'org1';
         process.env.DATALENS_INSTALLATION = 'cloud';
         process.env.DATALENS_YC_PROFILE = 'prod';
-        process.env.DATALENS_YC_IAM_REFRESH_SEC = '120';
         process.env.DATALENS_YC_BIN = '/usr/local/bin/yc';
         expect(loadConfig().ycIam).toEqual({
             profile: 'prod',
-            refreshIntervalMs: 120_000,
             bin: '/usr/local/bin/yc',
         });
-    });
-
-    it('falls back to the default refresh interval for an invalid value', () => {
-        process.env.DATALENS_API_URL = 'http://localhost:8080';
-        process.env.DATALENS_ORG_ID = 'org1';
-        process.env.DATALENS_YC_IAM_REFRESH_SEC = 'nope';
-        expect(loadConfig().ycIam?.refreshIntervalMs).toBe(3_600_000);
     });
 });

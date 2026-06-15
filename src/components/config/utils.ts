@@ -2,7 +2,6 @@ import {AppConfig, Installation, YcIamConfig} from './types';
 
 const DEFAULT_MAX_RESPONSE_CHARS = 100_000;
 const DEFAULT_INSTALLATION: Installation = 'cloud';
-const DEFAULT_YC_IAM_REFRESH_SEC = 3600;
 const DEFAULT_YC_BIN = 'yc';
 
 const parseMaxResponseChars = (raw: string | undefined): number => {
@@ -13,22 +12,11 @@ const parseMaxResponseChars = (raw: string | undefined): number => {
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_MAX_RESPONSE_CHARS;
 };
 
-const parsePositiveSeconds = (raw: string | undefined, fallback: number): number => {
-    if (!raw) {
-        return fallback;
-    }
-    const value = Number(raw);
-    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
-};
-
 const parseInstallation = (raw: string | undefined): Installation =>
     raw?.trim().toLowerCase() === 'yandex' ? 'yandex' : DEFAULT_INSTALLATION;
 
 const loadYcIamConfig = (): YcIamConfig => ({
     profile: process.env.DATALENS_YC_PROFILE || undefined,
-    refreshIntervalMs:
-        parsePositiveSeconds(process.env.DATALENS_YC_IAM_REFRESH_SEC, DEFAULT_YC_IAM_REFRESH_SEC) *
-        1000,
     bin: process.env.DATALENS_YC_BIN || DEFAULT_YC_BIN,
 });
 
