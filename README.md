@@ -47,7 +47,6 @@ so a long-running server never sends an expired token.
    If omitted, the currently active `yc` profile is used.
 
 The `yc` binary must be on `PATH`, or point `DATALENS_YC_BIN` at its full path.
-Any extra environment variables passed to the server are inherited by the `yc` subprocess.
 
 #### Alternative: static token (`DATALENS_YC_STATIC_AUTH`)
 
@@ -82,6 +81,23 @@ The server speaks MCP over stdio. You can run it with `npx` from your MCP client
     "datalens": {
       "command": "npx",
       "args": ["-y", "datalens-mcp@latest"],
+      "env": {
+        "DATALENS_API_URL": "https://datalens.example.com",
+        "DATALENS_ORG_ID": "<org-id>"
+      }
+    }
+  }
+}
+```
+
+Or point it at a locally built copy:
+
+```json
+{
+  "mcpServers": {
+    "datalens": {
+      "command": "node",
+      "args": ["/absolute/path/to/datalens-mcp/dist/index.js"],
       "env": {
         "DATALENS_API_URL": "https://datalens.example.com",
         "DATALENS_ORG_ID": "<org-id>"
