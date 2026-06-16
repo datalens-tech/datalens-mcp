@@ -15,29 +15,53 @@ would flood the model's context), it exposes a small **gateway** of three tools:
 The typical agent flow is: `list_commands` → `describe_commands` for the ones it
 needs → `invoke_command`.
 
-## Configuration
+## Authorization
 
-All configuration is via environment variables (see [.env.example](.env.example)):
+### Setup in Yandex Cloud (recommended)
 
-| Variable                      | Required | Default                    | Description                                                                                             |
-| ----------------------------- | -------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `DATALENS_API_URL`            | ✅       | —                          | Base URL of the DataLens public API.                                                                    |
-| `DATALENS_API_AUTH_HEADER`    |          | —                          | Value sent verbatim in the `Authorization` header. Include the scheme yourself (e.g. `Bearer <token>`). |
-| `DATALENS_HEADERS`            |          | —                          | Extra headers on every request, as `KEY=VALUE` pairs separated by `;`.                                  |
-| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                           |
-| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                                                  |
-| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.                                    |
+> **Prerequisite:** the [`yc` CLI](https://yandex.cloud/docs/cli/quickstart)
+> **must be installed and configured.** Install it, then run `yc init` to log in
+> and select your cloud and folder.
 
-## Install & build
+That's the whole setup. The server runs `yc iam create-token` to obtain an IAM
+token and sends it as `Authorization: Bearer <token>`. The token is fetched
+lazily on the first request and re-fetched only once it is about to expire.
 
-```bash
-npm ci
-npm run build
+Once `yc` works, you only need one environment variable — your organization id:
+
 ```
+DATALENS_ORG_ID=<org-id>
+```
+
+Optional `yc` tweaks:
+
+- `DATALENS_YC_PROFILE` — use a specific `yc` profile instead of the active one.
+- `DATALENS_YC_BIN` — full path to the `yc` binary if it isn't on `PATH`.
+
+### Alternative: static token
+
+If you can't run `yc` (e.g. in a sandboxed environment), you can manage the IAM
+token yourself: set `DATALENS_YC_STATIC_AUTH=1` and put the token in
+`DATALENS_API_AUTH_HEADER`. The value is sent as-is on every request and `yc` is
+never called.
+
+```
+DATALENS_YC_STATIC_AUTH=1
+DATALENS_API_AUTH_HEADER="Bearer <iam-token>"
+```
+
+> **Note:** IAM tokens expire after 12 hours. With this approach you are
+> responsible for refreshing `DATALENS_API_AUTH_HEADER` and restarting the server
+> before the token expires.
 
 ## Run
 
-The server speaks MCP over stdio. You can run it with `npx` from your MCP client:
+The server speaks MCP over stdio. Add it to your MCP client config in one of two
+ways.
+
+### Via `npx` (recommended)
+
+No install or build step — `npx` fetches the published package on demand:
 
 ```json
 {
@@ -46,15 +70,24 @@ The server speaks MCP over stdio. You can run it with `npx` from your MCP client
       "command": "npx",
       "args": ["-y", "datalens-mcp@latest"],
       "env": {
-        "DATALENS_API_URL": "https://datalens.example.com",
-        "DATALENS_API_AUTH_HEADER": "Bearer <token>"
+        "DATALENS_ORG_ID": "<org-id>"
       }
     }
   }
 }
 ```
 
-For a local build, configure your MCP client to run the compiled entrypoint directly:
+### From a local build
+
+Use this if you've cloned the repo. **Build it
+first:**
+
+```bash
+npm ci
+npm run build
+```
+
+Then point your client at the built file:
 
 ```json
 {
@@ -63,19 +96,28 @@ For a local build, configure your MCP client to run the compiled entrypoint dire
       "command": "node",
       "args": ["/absolute/path/to/datalens-mcp/dist/index.js"],
       "env": {
-        "DATALENS_API_URL": "https://datalens.example.com",
-        "DATALENS_API_AUTH_HEADER": "Bearer <token>"
+        "DATALENS_ORG_ID": "<org-id>"
       }
     }
   }
 }
 ```
 
-For local development with a `.env` file:
+## Configuration reference
 
-```bash
-npm run dev
-```
+All configuration is via environment variables (see [.env.example](.env.example)):
+
+| Variable                      | Required | Default                       | Description                                                                                        |
+| ----------------------------- | -------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `DATALENS_ORG_ID`             | ✅       | —                             | Organization id, sent in the `x-dl-org-id` header.                                                 |
+| `DATALENS_API_URL`            |          | `https://api.datalens.tech`   | Base URL of the DataLens API.    |
+| `DATALENS_YC_STATIC_AUTH`     |          | —                          | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                   |
+| `DATALENS_API_AUTH_HEADER`    |          | —                          | Static value for the `Authorization` header (e.g. `Bearer <token>`). Used when `DATALENS_YC_STATIC_AUTH` is set. |
+| `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                    |
+| `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                                           |
+| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                      |
+| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                                             |
+| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.                               |
 
 ## Development
 

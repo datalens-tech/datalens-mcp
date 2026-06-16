@@ -24,6 +24,6 @@ const main = async () => {
 };
 
 main().catch((err) => {
-    console.error('Failed to start datalens-mcp:', err);
+    console.error('Failed to start datalens-mcp:', err instanceof Error ? err.message : err);
     process.exit(1);
 });

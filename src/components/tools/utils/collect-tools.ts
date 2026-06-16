@@ -1,4 +1,5 @@
 import {withRequestTimeout} from '../../../utils';
+import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {bundleRefs} from '../../openapi';
@@ -14,14 +15,15 @@ const EMPTY_OBJECT_SCHEMA: JsonSchema = {
 // /rpc/getWorkbookEntries → "getWorkbookEntries"
 const toolNameFromPath = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? '';
 
-const buildRequestHeaders = (config: AppConfig): Record<string, string> => {
+// Headers that never change for the lifetime of the server. The Authorization
+// header is added per-request from the auth provider so a refreshed token is picked up.
+const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
         'content-type': 'application/json',
         'x-dl-api-version': config.apiVersion,
-        ...config.extraHeaders,
     };
-    if (config.authHeader) {
-        headers['Authorization'] = config.authHeader;
+    if (config.orgId) {
+        headers['x-dl-org-id'] = config.orgId;
     }
     return headers;
 };
@@ -45,8 +47,16 @@ const parseResponse = async (res: Response): Promise<unknown> => {
 };
 
 const buildInvokeFn =
-    (requestUrl: string, path: string, headers: Record<string, string>): CollectedTool['invoke'] =>
+    (
+        requestUrl: string,
+        path: string,
+        baseHeaders: Record<string, string>,
+        authProvider: AuthProvider,
+    ): CollectedTool['invoke'] =>
     async (args) => {
+        const authHeader = await authProvider.getAuthHeader();
+        const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
+
         const res = await withRequestTimeout(`${HTTP_POST_METHOD} ${requestUrl}`, (signal) =>
             fetch(requestUrl, {
                 method: HTTP_POST_METHOD,
@@ -73,7 +83,8 @@ const buildTool = (
     operation: OpenAPIOperation,
     components: OpenAPISpec['components'],
     config: AppConfig,
-    headers: Record<string, string>,
+    baseHeaders: Record<string, string>,
+    authProvider: AuthProvider,
 ): CollectedTool => {
     const name = toolNameFromPath(path);
     const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
@@ -87,18 +98,22 @@ const buildTool = (
         summary: operation.summary ?? name,
         description: buildDescription(operation, name),
         rawInputSchema,
-        invoke: buildInvokeFn(requestUrl, path, headers),
+        invoke: buildInvokeFn(requestUrl, path, baseHeaders, authProvider),
     };
 };
 
-export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedTool[] => {
-    const headers = buildRequestHeaders(config);
+export const collectTools = (
+    spec: OpenAPISpec,
+    config: AppConfig,
+    authProvider: AuthProvider,
+): CollectedTool[] => {
+    const baseHeaders = buildBaseHeaders(config);
 
     return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
         const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
         if (!operation || operation['x-mcp-disabled']) {
             return [];
         }
-        return [buildTool(path, operation, spec.components, config, headers)];
+        return [buildTool(path, operation, spec.components, config, baseHeaders, authProvider)];
     });
 };
