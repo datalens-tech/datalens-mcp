@@ -7,7 +7,21 @@ import type {AuthProvider} from './types';
 
 const execFileAsync = promisify(execFile);
 
-const REFRESH_INTERVAL_MS = 3_600_000;
+/** We refresh a token once we get within this margin of its expiry. */
+const EXPIRY_MARGIN_MS = 60_000;
+
+const getTokenExpiryMs = (token: string): number => {
+    const payload = token.split('.')[1];
+    if (payload) {
+        try {
+            const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+            if (typeof claims.exp === 'number') {
+                return claims.exp * 1000;
+            }
+        } catch {}
+    }
+    throw new Error('Failed to parse the `exp` claim from the yc IAM token');
+};
 
 const checkYcBin = async (bin: string): Promise<void> => {
     try {
@@ -37,27 +51,52 @@ export const fetchYcToken = async (config: YcIamConfig): Promise<string> => {
 };
 
 /**
- * Auth provider that fetches an IAM token via the `yc` CLI on startup and refreshes
- * it on a timer. The initial fetch failing is fatal (no token to use); later refresh
- * failures are logged and the previous token is kept.
+ * Auth provider that fetches an IAM token via the `yc` CLI lazily: the token is fetched
+ * on the first request and re-fetched only once it is about to expire (read from the token's
+ * JWT `exp` claim). Expiry is checked on every request, so a
+ * token is never renewed while the server sits idle. Concurrent requests that trigger a refresh
+ * share a single in-flight fetch. A transient fetch failure falls back to the cached token if it
+ * still exists.
  */
 export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<AuthProvider> => {
     await checkYcBin(config.bin);
-    let authHeader = `Bearer ${await fetchYcToken(config)}`;
 
-    const refresh = async () => {
+    let token: string | undefined;
+    let expiresAt = 0;
+    let inflight: Promise<string> | undefined;
+
+    const refresh = (): Promise<string> => {
+        if (!inflight) {
+            inflight = fetchYcToken(config)
+                .then((fetched) => {
+                    // Read the expiry first so a parse failure leaves the cached token untouched.
+                    expiresAt = getTokenExpiryMs(fetched);
+                    token = fetched;
+                    return fetched;
+                })
+                .finally(() => {
+                    inflight = undefined;
+                });
+        }
+        return inflight;
+    };
+
+    const getToken = async (): Promise<string> => {
+        if (token && Date.now() < expiresAt - EXPIRY_MARGIN_MS) {
+            return token;
+        }
         try {
-            authHeader = `Bearer ${await fetchYcToken(config)}`;
+            return await refresh();
         } catch (err) {
-            console.error('Failed to refresh yc IAM token, keeping the previous one:', err);
+            if (token) {
+                console.error('Failed to refresh yc IAM token, keeping the previous one:', err);
+                return token;
+            }
+            throw err;
         }
     };
 
-    const timer = setInterval(refresh, REFRESH_INTERVAL_MS);
-    // Don't let the refresh timer keep the process alive on its own.
-    timer.unref();
-
     return {
-        getAuthHeader: () => authHeader,
+        getAuthHeader: async () => `Bearer ${await getToken()}`,
     };
 };

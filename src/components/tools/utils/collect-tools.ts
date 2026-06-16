@@ -54,7 +54,7 @@ const buildInvokeFn =
         authProvider: AuthProvider,
     ): CollectedTool['invoke'] =>
     async (args) => {
-        const authHeader = authProvider.getAuthHeader();
+        const authHeader = await authProvider.getAuthHeader();
         const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
 
         const res = await withRequestTimeout(`${HTTP_POST_METHOD} ${requestUrl}`, (signal) =>
