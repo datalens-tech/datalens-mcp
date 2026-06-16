@@ -10,17 +10,10 @@ const execFileAsync = promisify(execFile);
 /** We refresh a token once we get within this margin of its expiry. */
 const EXPIRY_MARGIN_MS = 60_000;
 
-const getTokenExpiryMs = (token: string): number => {
-    const payload = token.split('.')[1];
-    if (payload) {
-        try {
-            const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-            if (typeof claims.exp === 'number') {
-                return claims.exp * 1000;
-            }
-        } catch {}
-    }
-    throw new Error('Failed to parse the `exp` claim from the yc IAM token');
+/** A freshly fetched IAM token together with its absolute expiry (epoch milliseconds). */
+export type YcToken = {
+    token: string;
+    expiresAt: number;
 };
 
 const checkYcBin = async (bin: string): Promise<void> => {
@@ -35,28 +28,41 @@ const checkYcBin = async (bin: string): Promise<void> => {
     }
 };
 
-/** Runs `yc iam create-token` and returns the raw IAM token. */
-export const fetchYcToken = async (config: YcIamConfig): Promise<string> => {
-    const args = ['iam', 'create-token'];
+/** Runs `yc iam create-token --format json` and returns the IAM token with its expiry. */
+export const fetchYcToken = async (config: YcIamConfig): Promise<YcToken> => {
+    const args = ['iam', 'create-token', '--format', 'json'];
     if (config.profile) {
         args.push('--profile', config.profile);
     }
 
     const {stdout} = await execFileAsync(config.bin, args);
-    const token = stdout.trim();
+
+    let parsed: {iamToken?: unknown; expiresAt?: unknown};
+    try {
+        parsed = JSON.parse(stdout);
+    } catch {
+        throw new Error('`yc iam create-token` returned invalid JSON');
+    }
+
+    const token = typeof parsed.iamToken === 'string' ? parsed.iamToken.trim() : '';
     if (!token) {
         throw new Error('`yc iam create-token` returned an empty token');
     }
-    return token;
+
+    const expiresAt = typeof parsed.expiresAt === 'string' ? Date.parse(parsed.expiresAt) : NaN;
+    if (Number.isNaN(expiresAt)) {
+        throw new Error('`yc iam create-token` returned an invalid expiresAt');
+    }
+
+    return {token, expiresAt};
 };
 
 /**
  * Auth provider that fetches an IAM token via the `yc` CLI lazily: the token is fetched
- * on the first request and re-fetched only once it is about to expire (read from the token's
- * JWT `exp` claim). Expiry is checked on every request, so a
- * token is never renewed while the server sits idle. Concurrent requests that trigger a refresh
- * share a single in-flight fetch. A transient fetch failure falls back to the cached token if it
- * still exists.
+ * on the first request and re-fetched only once it is about to expire (using the `expiresAt`
+ * reported by `yc iam create-token`). Expiry is checked on every request, so a token is never
+ * renewed while the server sits idle. Concurrent requests that trigger a refresh share a single
+ * in-flight fetch. A transient fetch failure falls back to the cached token if it still exists.
  */
 export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<AuthProvider> => {
     await checkYcBin(config.bin);
@@ -69,10 +75,9 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
         if (!inflight) {
             inflight = fetchYcToken(config)
                 .then((fetched) => {
-                    // Read the expiry first so a parse failure leaves the cached token untouched.
-                    expiresAt = getTokenExpiryMs(fetched);
-                    token = fetched;
-                    return fetched;
+                    token = fetched.token;
+                    expiresAt = fetched.expiresAt;
+                    return fetched.token;
                 })
                 .finally(() => {
                     inflight = undefined;
