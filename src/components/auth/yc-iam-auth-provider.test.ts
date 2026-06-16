@@ -114,6 +114,13 @@ describe('createYcIamAuthProvider', () => {
         );
     });
 
+    it('re-throws non-ENOENT errors from the version check', async () => {
+        const permissionDenied = Object.assign(new Error('spawn yc EACCES'), {code: 'EACCES'});
+        execFileMock.mockRejectedValue(permissionDenied);
+
+        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow('EACCES');
+    });
+
     it('propagates a fetch failure when there is no cached token to fall back to', async () => {
         execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''}); // checkYcBin succeeds
         execFileMock.mockRejectedValueOnce(new Error('auth error'));

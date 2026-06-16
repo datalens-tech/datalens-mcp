@@ -25,6 +25,7 @@ const checkYcBin = async (bin: string): Promise<void> => {
                 `yc CLI not found at "${bin}". Install it (https://yandex.cloud/docs/cli/quickstart) or set DATALENS_YC_BIN to the full path.`,
             );
         }
+        throw err;
     }
 };
 
