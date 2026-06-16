@@ -37,21 +37,21 @@ export const fetchYcToken = async (config: YcIamConfig): Promise<YcToken> => {
 
     const {stdout} = await execFileAsync(config.bin, args);
 
-    let parsed: {iamToken?: unknown; expiresAt?: unknown};
+    let parsed: {iam_token?: unknown; expires_at?: unknown};
     try {
         parsed = JSON.parse(stdout);
     } catch {
         throw new Error('`yc iam create-token` returned invalid JSON');
     }
 
-    const token = typeof parsed.iamToken === 'string' ? parsed.iamToken.trim() : '';
+    const token = typeof parsed.iam_token === 'string' ? parsed.iam_token.trim() : '';
     if (!token) {
         throw new Error('`yc iam create-token` returned an empty token');
     }
 
-    const expiresAt = typeof parsed.expiresAt === 'string' ? Date.parse(parsed.expiresAt) : NaN;
+    const expiresAt = typeof parsed.expires_at === 'string' ? Date.parse(parsed.expires_at) : NaN;
     if (Number.isNaN(expiresAt)) {
-        throw new Error('`yc iam create-token` returned an invalid expiresAt');
+        throw new Error('`yc iam create-token` returned an invalid expires_at');
     }
 
     return {token, expiresAt};

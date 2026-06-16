@@ -20,7 +20,8 @@ const baseConfig: YcIamConfig = {
 };
 
 // Builds the JSON `yc iam create-token --format json` prints.
-const ycJson = (iamToken: string, expiresAt: string) => JSON.stringify({iamToken, expiresAt});
+const ycJson = (iamToken: string, expiresAt: string) =>
+    JSON.stringify({iam_token: iamToken, expires_at: expiresAt});
 
 // Far enough in the future that the token never expires during a test.
 const FAR_FUTURE = '2099-01-01T00:00:00.000Z';
@@ -31,8 +32,9 @@ describe('fetchYcToken', () => {
     });
 
     it('calls `yc iam create-token --format json` and returns the token with its expiry', async () => {
+        // yc reports expires_at with nanosecond precision.
         execFileMock.mockResolvedValue({
-            stdout: ycJson('t1.tok123', '2024-01-15T14:30:00.000Z'),
+            stdout: ycJson('t1.tok123', '2026-06-16T21:55:23.890404478Z'),
             stderr: '',
         });
 
@@ -40,7 +42,7 @@ describe('fetchYcToken', () => {
 
         expect(result).toEqual({
             token: 't1.tok123',
-            expiresAt: Date.parse('2024-01-15T14:30:00.000Z'),
+            expiresAt: Date.parse('2026-06-16T21:55:23.890Z'),
         });
         expect(execFileMock).toHaveBeenCalledWith('yc', [
             'iam',
@@ -77,10 +79,10 @@ describe('fetchYcToken', () => {
         await expect(fetchYcToken(baseConfig)).rejects.toThrow('empty token');
     });
 
-    it('throws on an invalid expiresAt', async () => {
+    it('throws on an invalid expires_at', async () => {
         execFileMock.mockResolvedValue({stdout: ycJson('t1.tok', 'not-a-date'), stderr: ''});
 
-        await expect(fetchYcToken(baseConfig)).rejects.toThrow('invalid expiresAt');
+        await expect(fetchYcToken(baseConfig)).rejects.toThrow('invalid expires_at');
     });
 });
 
@@ -152,7 +154,7 @@ describe('createYcIamAuthProvider', () => {
 
         const provider = await createYcIamAuthProvider(baseConfig);
 
-        await expect(provider.getAuthHeader()).rejects.toThrow('invalid expiresAt');
+        await expect(provider.getAuthHeader()).rejects.toThrow('invalid expires_at');
     });
 
     it('only fetches once when concurrent requests trigger a refresh', async () => {
