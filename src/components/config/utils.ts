@@ -14,7 +14,7 @@ const parseMaxResponseChars = (raw: string | undefined): number => {
 };
 
 const parseInstallation = (raw: string | undefined): Installation =>
-    raw?.trim().toLowerCase() === 'yandex' ? 'yandex' : DEFAULT_INSTALLATION;
+    raw?.trim().toLowerCase() === 'internal' ? 'internal' : DEFAULT_INSTALLATION;
 
 const parseBool = (raw: string | undefined): boolean =>
     raw === '1' || raw?.toLowerCase() === 'true';
@@ -29,7 +29,7 @@ export const loadConfig = (): AppConfig => {
     const isCloud = installation === 'cloud';
 
     if (!isCloud && !process.env.DATALENS_API_URL) {
-        throw new Error('DATALENS_API_URL env is not set (required for the yandex installation)');
+        throw new Error('DATALENS_API_URL env is not set (required for the internal installation)');
     }
     const apiUrl = (process.env.DATALENS_API_URL || DEFAULT_CLOUD_API_URL).replace(/\/$/, '');
 

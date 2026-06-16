@@ -43,8 +43,8 @@ describe('loadConfig', () => {
         expect(config.schemaUrl).toBe('https://api.datalens.tech/json/');
     });
 
-    it('throws when DATALENS_API_URL is missing on the yandex installation', () => {
-        process.env.DATALENS_INSTALLATION = 'yandex';
+    it('throws when DATALENS_API_URL is missing on the internal installation', () => {
+        process.env.DATALENS_INSTALLATION = 'internal';
         expect(() => loadConfig()).toThrow('DATALENS_API_URL');
     });
 
@@ -102,14 +102,14 @@ describe('loadConfig', () => {
         expect(loadConfig().maxResponseChars).toBe(100_000);
     });
 
-    it('uses the yandex installation without ycIam settings', () => {
+    it('uses the internal installation without ycIam settings', () => {
         process.env.DATALENS_API_URL = 'http://localhost:8080';
-        process.env.DATALENS_INSTALLATION = 'yandex';
+        process.env.DATALENS_INSTALLATION = 'internal';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
         process.env.DATALENS_YC_PROFILE = 'prod';
         const config = loadConfig();
 
-        expect(config.installation).toBe('yandex');
+        expect(config.installation).toBe('internal');
         expect(config.ycIam).toBeUndefined();
         expect(config.authHeader).toBe('Bearer token');
     });

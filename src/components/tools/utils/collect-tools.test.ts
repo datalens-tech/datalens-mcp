@@ -8,7 +8,7 @@ import {collectTools} from './collect-tools';
 
 const config: AppConfig = {
     apiUrl: 'http://localhost:8080',
-    installation: 'yandex',
+    installation: 'internal',
     schemaUrl: 'http://localhost:8080/json/',
     apiVersion: 'latest',
     maxResponseChars: 100_000,

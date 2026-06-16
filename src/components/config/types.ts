@@ -9,9 +9,9 @@ export type YcIamConfig = {
 /**
  * DataLens installation type, decides how requests are authorized:
  * - `cloud` (default): Authorization is an IAM token fetched via the `yc` CLI.
- * - `yandex`: Authorization is taken from DATALENS_API_AUTH_HEADER.
+ * - `internal`: Authorization is taken from DATALENS_API_AUTH_HEADER.
  */
-export type Installation = 'cloud' | 'yandex';
+export type Installation = 'cloud' | 'internal';
 
 export type AppConfig = {
     /** Base URL of the DataLens public API */
@@ -20,7 +20,7 @@ export type AppConfig = {
     installation: Installation;
     /** Organization id sent in the x-dl-org-id header (required for the `cloud` installation) */
     orgId?: string;
-    /** Authorization header on every API request (used when installation is `yandex`) */
+    /** Authorization header on every API request */
     authHeader?: string;
     /** IAM-token settings, present when installation is `cloud` */
     ycIam?: YcIamConfig;
