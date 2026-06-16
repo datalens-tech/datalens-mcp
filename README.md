@@ -23,9 +23,9 @@ needs → `invoke_command`.
 > **must be installed and configured.** Install it, then run `yc init` to log in
 > and select your cloud and folder.
 
-That's the whole setup. The server runs `yc iam create-token` on startup, sends
-the result as `Authorization: Bearer <token>`, and refreshes it automatically
-every hour — so a long-running server never sends an expired token.
+That's the whole setup. The server runs `yc iam create-token` to obtain an IAM
+token and sends it as `Authorization: Bearer <token>`. The token is fetched
+lazily on the first request and re-fetched only once it is about to expire.
 
 Once `yc` works, you only need one environment variable — your organization id:
 
