@@ -3,6 +3,19 @@
   "version": "0.1.1",
   "description": "MCP server for DataLens public API",
   "license": "MIT",
+  "keywords": [
+    "datalens",
+    "mcp",
+    "api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/datalens-tech/datalens-mcp.git"
+  },
+  "homepage": "https://github.com/datalens-tech/datalens-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/datalens-tech/datalens-mcp/issues"
+  },
   "main": "dist/index.js",
   "files": [
     "dist",
