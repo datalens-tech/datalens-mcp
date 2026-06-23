@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICES"
   ],
   "bin": {
     "datalens-mcp": "./dist/index.js"
