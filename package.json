@@ -1,5 +1,5 @@
 {
-  "name": "datalens-mcp",
+  "name": "@datalens-tech/mcp",
   "version": "0.1.0",
   "description": "MCP server for DataLens public API",
   "main": "dist/index.js",
@@ -9,6 +9,9 @@
   ],
   "bin": {
     "datalens-mcp": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18"
