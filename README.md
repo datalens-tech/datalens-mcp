@@ -56,8 +56,8 @@ DATALENS_API_AUTH_HEADER="Bearer <iam-token>"
 
 ## Run
 
-The server speaks MCP over stdio. Add it to your MCP client config in one of two
-ways.
+The server speaks MCP over stdio. Add it to your MCP client config in one of the
+ways below.
 
 ### Via `npx` (recommended)
 
@@ -68,7 +68,28 @@ No install or build step — `npx` fetches the published package on demand:
   "mcpServers": {
     "datalens": {
       "command": "npx",
-      "args": ["-y", "datalens-mcp@latest"],
+      "args": ["-y", "@datalens-tech/mcp@latest"],
+      "env": {
+        "DATALENS_ORG_ID": "<org-id>"
+      }
+    }
+  }
+}
+```
+
+### Via a global install
+
+Install the package once, then reference the `datalens-mcp` command:
+
+```bash
+npm install -g @datalens-tech/mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "datalens": {
+      "command": "datalens-mcp",
       "env": {
         "DATALENS_ORG_ID": "<org-id>"
       }
