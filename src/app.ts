@@ -6,7 +6,7 @@ import {fetchOpenAPISpec} from './components/openapi';
 import {collectTools, registerTools} from './components/tools';
 
 const MCP_SERVER_NAME = 'datalens-public-api';
-const MCP_SERVER_VERSION = '0.1.0';
+const MCP_SERVER_VERSION = '0.1.1';
 
 export const createApp = async (): Promise<Server> => {
     const config = loadConfig();
