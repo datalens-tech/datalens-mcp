@@ -177,6 +177,19 @@ describe('createYcIamAuthProvider', () => {
         expect(execFileMock).toHaveBeenCalledTimes(2); // version + a single token fetch
     });
 
+    it('invalidates a rejected cached token and fetches a new one', async () => {
+        execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''});
+        execFileMock.mockResolvedValueOnce({stdout: ycJson('t1.first', FAR_FUTURE), stderr: ''});
+        execFileMock.mockResolvedValueOnce({stdout: ycJson('t1.second', FAR_FUTURE), stderr: ''});
+
+        const provider = await createYcIamAuthProvider(baseConfig);
+        expect(await provider.getAuthHeader()).toBe('Bearer t1.first');
+
+        provider.invalidate?.();
+
+        expect(await provider.getAuthHeader()).toBe('Bearer t1.second');
+    });
+
     it('keeps the previous token when a refresh fails', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(0);
@@ -192,10 +205,11 @@ describe('createYcIamAuthProvider', () => {
         expect(await provider.getAuthHeader()).toBe('Bearer t1.good');
 
         // Past expiry, but the refresh fetch fails transiently: keep the cached token.
-        execFileMock.mockRejectedValueOnce(new Error('transient'));
+        execFileMock.mockRejectedValueOnce(new Error('Bearer should-not-leak'));
         await vi.advanceTimersByTimeAsync(600_000);
 
         expect(await provider.getAuthHeader()).toBe('Bearer t1.good');
         expect(errorSpy).toHaveBeenCalled();
+        expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('should-not-leak');
     });
 });

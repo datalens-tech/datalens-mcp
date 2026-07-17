@@ -1,6 +1,6 @@
 {
   "name": "@datalens-tech/mcp",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "MCP server for DataLens public API",
   "license": "MIT",
   "keywords": [
@@ -17,10 +17,11 @@
     "url": "https://github.com/datalens-tech/datalens-mcp/issues"
   },
   "main": "dist/index.js",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
+    "files": [
+      "dist",
+      "README.md",
+      "MIGRATION.md",
+      "LICENSE",
     "NOTICES"
   ],
   "bin": {
@@ -33,16 +34,19 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "node scripts/clean-dist.cjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "prepack": "npm run build",
+    "pretest": "npm run build",
     "dev": "NODE_ENV=development ts-node src/index.ts",
     "start": "NODE_ENV=production node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint:prettier": "prettier --check 'src/**/*.ts'",
-    "lint:js": "eslint \"src/**/*.ts\" --quiet",
+    "lint:prettier": "prettier --check 'src/**/*.ts' 'scripts/**/*.cjs' '*.md' '.github/**/*.yml'",
+    "lint:js": "eslint \"src/**/*.ts\" \"scripts/**/*.cjs\" --quiet",
     "lint": "npm run lint:prettier && npm run lint:js",
-    "format": "prettier --write 'src/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts' 'scripts/**/*.cjs' '*.md' '.github/**/*.yml'",
     "test": "vitest run",
+    "test:package": "node scripts/package-smoke.cjs",
     "test:watch": "vitest"
   },
   "lint-staged": {
@@ -53,6 +57,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "ajv": "^8.17.1",
     "dotenv": "^17.4.2"
   },
   "devDependencies": {

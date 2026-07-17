@@ -1,6 +1,7 @@
 import {execFile} from 'child_process';
 import {promisify} from 'util';
 
+import {toSafeErrorMessage} from '../../utils';
 import type {YcIamConfig} from '../config';
 
 import type {AuthProvider} from './types';
@@ -95,7 +96,10 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
             return await refresh();
         } catch (err) {
             if (token) {
-                console.error('Failed to refresh yc IAM token, keeping the previous one:', err);
+                console.error(
+                    'Failed to refresh yc IAM token, keeping the previous one:',
+                    toSafeErrorMessage(err),
+                );
                 return token;
             }
             throw err;
@@ -104,5 +108,9 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
 
     return {
         getAuthHeader: async () => `Bearer ${await getToken()}`,
+        invalidate: () => {
+            token = undefined;
+            expiresAt = 0;
+        },
     };
 };

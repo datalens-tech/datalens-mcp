@@ -6,6 +6,7 @@ import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import dotenv from 'dotenv';
 
 import {createApp} from './app';
+import {toSafeErrorMessage} from './utils';
 
 if (process.env.NODE_ENV === 'development') {
     dotenv.config({path: path.resolve(__dirname, '..', '.env'), quiet: true});
@@ -24,6 +25,6 @@ const main = async () => {
 };
 
 main().catch((err) => {
-    console.error('Failed to start datalens-mcp:', err instanceof Error ? err.message : err);
+    console.error('Failed to start datalens-mcp:', toSafeErrorMessage(err));
     process.exit(1);
 });

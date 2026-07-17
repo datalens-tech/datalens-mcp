@@ -1,19 +1,26 @@
-name: Lint, Typecheck, Test
+name: Verify
 
 on:
   pull_request:
-  
+  push:
+    branches:
+      - main
+
 jobs:
-  lint-and-typecheck:
-    name: Lint & TS check & Test
+  verify:
+    name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18', '20', '22']
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -25,5 +32,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
+      - name: Unit and stdio integration tests
+        if: matrix.node-version != '18'
         run: npm test
+
+      - name: Package smoke test
+        run: npm run test:package
