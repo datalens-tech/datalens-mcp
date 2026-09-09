@@ -142,19 +142,19 @@ Then point your client at the built file:
 
 All configuration is via environment variables (see [.env.example](.env.example)):
 
-| Variable                      | Required | Default                       | Description                                                                                        |
-| ----------------------------- | -------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `DATALENS_ORG_ID`             | Cloud    | —                             | Organization id, sent in the `x-dl-org-id` header.                                                 |
-| `DATALENS_INSTALLATION`       |          | `cloud`                       | Installation type: `cloud` or `internal`.                                                         |
-| `DATALENS_API_URL`            | Internal | Cloud: `https://api.datalens.tech` | Base URL of the DataLens API.                                                               |
-| `DATALENS_OAUTH_TOKEN`        |          | —                             | OAuth token for an internal installation. Takes precedence over `DATALENS_API_AUTH_HEADER`.        |
-| `DATALENS_YC_STATIC_AUTH`     |          | —                          | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                   |
-| `DATALENS_API_AUTH_HEADER`    |          | —                          | Complete static `Authorization` header. Used as an internal fallback or when `DATALENS_YC_STATIC_AUTH` is set. |
-| `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                    |
-| `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                                           |
-| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                      |
-| `DATALENS_API_VERSION`        |          | `latest`                   | Sent in the `x-dl-api-version` header.                                                             |
-| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                   | Responses longer than this are truncated before reaching the client.                               |
+| Variable                      | Required | Default                            | Description                                                                                                    |
+| ----------------------------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DATALENS_ORG_ID`             | Cloud    | —                                  | Organization id, sent in the `x-dl-org-id` header.                                                             |
+| `DATALENS_INSTALLATION`       |          | `cloud`                            | Installation type: `cloud` or `internal`.                                                                      |
+| `DATALENS_API_URL`            | Internal | Cloud: `https://api.datalens.tech` | Base URL of the DataLens API.                                                                                  |
+| `DATALENS_OAUTH_TOKEN`        |          | —                                  | OAuth token for an internal installation. Takes precedence over `DATALENS_API_AUTH_HEADER`.                    |
+| `DATALENS_YC_STATIC_AUTH`     |          | —                                  | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                                |
+| `DATALENS_API_AUTH_HEADER`    |          | —                                  | Complete static `Authorization` header. Used as an internal fallback or when `DATALENS_YC_STATIC_AUTH` is set. |
+| `DATALENS_YC_PROFILE`         |          | —                                  | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                                 |
+| `DATALENS_YC_BIN`             |          | `yc`                               | Path to the `yc` binary.                                                                                       |
+| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/`         | URL of the OpenAPI JSON spec.                                                                                  |
+| `DATALENS_API_VERSION`        |          | `latest`                           | Sent in the `x-dl-api-version` header.                                                                         |
+| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                           | Responses longer than this are truncated before reaching the client.                                           |
 
 ## Development
 
