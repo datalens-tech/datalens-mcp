@@ -54,6 +54,20 @@ DATALENS_API_AUTH_HEADER="Bearer <iam-token>"
 > responsible for refreshing `DATALENS_API_AUTH_HEADER` and restarting the server
 > before the token expires.
 
+### Internal installation
+
+For an internal DataLens installation, set the installation type, API URL and OAuth token:
+
+```bash
+DATALENS_INSTALLATION=internal
+DATALENS_API_URL=https://datalens.example.com
+DATALENS_OAUTH_TOKEN=<oauth-token>
+```
+
+The token is sent as `Authorization: OAuth <oauth-token>`. For backward compatibility,
+`DATALENS_API_AUTH_HEADER` is still supported as a complete Authorization header value.
+When both variables are set, `DATALENS_OAUTH_TOKEN` takes precedence.
+
 ## Run
 
 The server speaks MCP over stdio. Add it to your MCP client config in one of the
@@ -130,10 +144,12 @@ All configuration is via environment variables (see [.env.example](.env.example)
 
 | Variable                      | Required | Default                       | Description                                                                                        |
 | ----------------------------- | -------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `DATALENS_ORG_ID`             | ✅       | —                             | Organization id, sent in the `x-dl-org-id` header.                                                 |
-| `DATALENS_API_URL`            |          | `https://api.datalens.tech`   | Base URL of the DataLens API.    |
+| `DATALENS_ORG_ID`             | Cloud    | —                             | Organization id, sent in the `x-dl-org-id` header.                                                 |
+| `DATALENS_INSTALLATION`       |          | `cloud`                       | Installation type: `cloud` or `internal`.                                                         |
+| `DATALENS_API_URL`            | Internal | Cloud: `https://api.datalens.tech` | Base URL of the DataLens API.                                                               |
+| `DATALENS_OAUTH_TOKEN`        |          | —                             | OAuth token for an internal installation. Takes precedence over `DATALENS_API_AUTH_HEADER`.        |
 | `DATALENS_YC_STATIC_AUTH`     |          | —                          | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                   |
-| `DATALENS_API_AUTH_HEADER`    |          | —                          | Static value for the `Authorization` header (e.g. `Bearer <token>`). Used when `DATALENS_YC_STATIC_AUTH` is set. |
+| `DATALENS_API_AUTH_HEADER`    |          | —                          | Complete static `Authorization` header. Used as an internal fallback or when `DATALENS_YC_STATIC_AUTH` is set. |
 | `DATALENS_YC_PROFILE`         |          | —                          | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                    |
 | `DATALENS_YC_BIN`             |          | `yc`                       | Path to the `yc` binary.                                                                           |
 | `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/` | URL of the OpenAPI JSON spec.                                                                      |
