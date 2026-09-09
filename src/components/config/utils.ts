@@ -19,7 +19,7 @@ const parseInstallation = (raw: string | undefined): Installation =>
 const parseBool = (raw: string | undefined): boolean =>
     raw === '1' || raw?.toLowerCase() === 'true';
 
-const getStaticAuthHeader = (installation: Installation): string | undefined => {
+const resolveAuthHeader = (installation: Installation): string | undefined => {
     const oauthToken = process.env.DATALENS_OAUTH_TOKEN?.trim();
 
     if (installation === 'internal' && oauthToken) {
@@ -58,7 +58,7 @@ export const loadConfig = (): AppConfig => {
         apiUrl,
         installation,
         orgId: isCloud ? orgId : undefined,
-        authHeader: getStaticAuthHeader(installation),
+        authHeader: resolveAuthHeader(installation),
         ycIam,
         schemaUrl: process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}/json/`,
         apiVersion: process.env.DATALENS_API_VERSION ?? 'latest',
