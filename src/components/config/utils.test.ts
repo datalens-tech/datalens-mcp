@@ -6,6 +6,7 @@ describe('loadConfig', () => {
     const ENV_KEYS = [
         'DATALENS_API_URL',
         'DATALENS_API_AUTH_HEADER',
+        'DATALENS_OAUTH_TOKEN',
         'DATALENS_SCHEMA_URL',
         'DATALENS_API_VERSION',
         'DATALENS_MAX_RESPONSE_CHARS',
@@ -114,11 +115,29 @@ describe('loadConfig', () => {
         expect(config.authHeader).toBe('Bearer token');
     });
 
+    it('uses DATALENS_OAUTH_TOKEN for the internal installation', () => {
+        process.env.DATALENS_API_URL = 'http://localhost:8080';
+        process.env.DATALENS_INSTALLATION = 'internal';
+        process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
+
+        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+    });
+
+    it('prefers DATALENS_OAUTH_TOKEN to DATALENS_API_AUTH_HEADER internally', () => {
+        process.env.DATALENS_API_URL = 'http://localhost:8080';
+        process.env.DATALENS_INSTALLATION = 'internal';
+        process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
+        process.env.DATALENS_API_AUTH_HEADER = 'Legacy header';
+
+        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+    });
+
     it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=true', () => {
         process.env.DATALENS_API_URL = 'http://localhost:8080';
         process.env.DATALENS_ORG_ID = 'org1';
         process.env.DATALENS_YC_STATIC_AUTH = 'true';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
+        process.env.DATALENS_OAUTH_TOKEN = 'internal-oauth-token';
         const config = loadConfig();
 
         expect(config.installation).toBe('cloud');
