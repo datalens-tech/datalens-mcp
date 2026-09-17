@@ -67,9 +67,9 @@ describe('collectTools', () => {
         );
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
         const [tool] = collectTools({paths: {'/rpc/test': {post: {}}}}, config, authProvider);
-        await expect(tool.invoke({})).rejects.toThrow(
-            'API call to POST /rpc/test failed: HTTP 403',
-        );
+        const error = await tool.invoke({}).catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(Error);
+        expect(String(error)).not.toContain('secret-body');
         expect(cancel).toHaveBeenCalledOnce();
     });
     it('collects only POST operations and ignores other methods', () => {

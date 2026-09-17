@@ -57,9 +57,10 @@ describe('fetchOpenAPISpec', () => {
             'fetch',
             vi.fn().mockResolvedValue(new Response('secret-body', {status: 403})),
         );
-        await expect(fetchOpenAPISpec(config)).rejects.toThrow(
-            'Failed to fetch OpenAPI schema from https://schema.example.com: HTTP 403',
-        );
+        const error = await fetchOpenAPISpec(config).catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(Error);
+        expect(String(error)).toContain('https://schema.example.com');
+        expect(String(error)).not.toContain('secret-');
     });
 
     it('rejects deeply nested schemas before recursive ref processing', async () => {

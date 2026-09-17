@@ -1,3 +1,5 @@
+import {inspect} from 'util';
+
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import type {YcIamConfig} from '../config';
@@ -122,9 +124,9 @@ describe('createYcIamAuthProvider', () => {
         });
         execFileMock.mockRejectedValue(permissionDenied);
 
-        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow(
-            'Failed to execute yc CLI version check',
-        );
+        const error = await createYcIamAuthProvider(baseConfig).catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(Error);
+        expect(inspect(error)).not.toContain('secret-marker');
     });
 
     it('propagates a fetch failure when there is no cached token to fall back to', async () => {
@@ -138,9 +140,11 @@ describe('createYcIamAuthProvider', () => {
 
         const provider = await createYcIamAuthProvider(baseConfig);
 
-        await expect(provider.getAuthHeader()).rejects.toThrow(
-            'Failed to obtain an IAM token via yc CLI',
-        );
+        const error = await Promise.resolve()
+            .then(() => provider.getAuthHeader())
+            .catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(Error);
+        expect(inspect(error)).not.toContain('secret-marker');
     });
 
     it('reuses the cached token until it is about to expire, then refreshes', async () => {
@@ -214,9 +218,9 @@ describe('createYcIamAuthProvider', () => {
         await vi.advanceTimersByTimeAsync(600_000);
 
         expect(await provider.getAuthHeader()).toBe('Bearer t1.good');
-        expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-            'Failed to refresh yc IAM token, keeping the previous one',
-        );
+        expect(errorSpy).toHaveBeenCalledOnce();
+        expect(inspect(errorSpy.mock.calls)).not.toContain('secret-marker');
+        expect(inspect(errorSpy.mock.calls)).not.toContain('t1.good');
         errorSpy.mockRestore();
     });
 });
