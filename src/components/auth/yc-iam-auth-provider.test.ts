@@ -114,20 +114,33 @@ describe('createYcIamAuthProvider', () => {
         );
     });
 
-    it('re-throws non-ENOENT errors from the version check', async () => {
-        const permissionDenied = Object.assign(new Error('spawn yc EACCES'), {code: 'EACCES'});
+    it('does not expose output from a failed version check', async () => {
+        const permissionDenied = Object.assign(new Error('secret-marker'), {
+            code: 'EACCES',
+            stdout: 'secret-marker',
+            stderr: 'secret-marker',
+        });
         execFileMock.mockRejectedValue(permissionDenied);
 
-        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow('EACCES');
+        await expect(createYcIamAuthProvider(baseConfig)).rejects.toThrow(
+            'Failed to execute yc CLI version check',
+        );
     });
 
     it('propagates a fetch failure when there is no cached token to fall back to', async () => {
         execFileMock.mockResolvedValueOnce({stdout: '', stderr: ''}); // checkYcBin succeeds
-        execFileMock.mockRejectedValueOnce(new Error('auth error'));
+        execFileMock.mockRejectedValueOnce(
+            Object.assign(new Error('secret-marker'), {
+                stdout: 'secret-marker',
+                stderr: 'secret-marker',
+            }),
+        );
 
         const provider = await createYcIamAuthProvider(baseConfig);
 
-        await expect(provider.getAuthHeader()).rejects.toThrow('auth error');
+        await expect(provider.getAuthHeader()).rejects.toThrow(
+            'Failed to obtain an IAM token via yc CLI',
+        );
     });
 
     it('reuses the cached token until it is about to expire, then refreshes', async () => {
@@ -192,10 +205,18 @@ describe('createYcIamAuthProvider', () => {
         expect(await provider.getAuthHeader()).toBe('Bearer t1.good');
 
         // Past expiry, but the refresh fetch fails transiently: keep the cached token.
-        execFileMock.mockRejectedValueOnce(new Error('transient'));
+        execFileMock.mockRejectedValueOnce(
+            Object.assign(new Error('secret-marker'), {
+                stdout: 'secret-marker',
+                stderr: 'secret-marker',
+            }),
+        );
         await vi.advanceTimersByTimeAsync(600_000);
 
         expect(await provider.getAuthHeader()).toBe('Bearer t1.good');
-        expect(errorSpy).toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+            'Failed to refresh yc IAM token, keeping the previous one',
+        );
+        errorSpy.mockRestore();
     });
 });

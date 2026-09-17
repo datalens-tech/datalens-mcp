@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
@@ -7,9 +7,9 @@ import type {OpenAPISpec} from '../../openapi';
 import {collectTools} from './collect-tools';
 
 const config: AppConfig = {
-    apiUrl: 'http://localhost:8080',
+    apiUrl: 'https://api.example.com',
     installation: 'internal',
-    schemaUrl: 'http://localhost:8080/json/',
+    schemaUrl: 'https://api.example.com/json/',
     apiVersion: 'latest',
     maxResponseChars: 100_000,
 };
@@ -17,6 +17,61 @@ const config: AppConfig = {
 const authProvider: AuthProvider = {getAuthHeader: () => undefined};
 
 describe('collectTools', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('preserves JSON and text results and rejects redirects for authenticated calls', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(new Response('{"id":"entry"}'))
+            .mockResolvedValueOnce(new Response('plain text'));
+        vi.stubGlobal('fetch', fetchMock);
+        const [tool] = collectTools({paths: {'/rpc/test': {post: {}}}}, config, {
+            getAuthHeader: () => 'Bearer test-token',
+        });
+        expect(await tool.invoke({id: 'entry'})).toEqual({id: 'entry'});
+        expect(await tool.invoke({})).toBe('plain text');
+        expect(fetchMock).toHaveBeenCalledWith(
+            'https://api.example.com/rpc/test',
+            expect.objectContaining({
+                redirect: 'error',
+                headers: expect.objectContaining({Authorization: 'Bearer test-token'}),
+                body: '{"id":"entry"}',
+            }),
+        );
+    });
+
+    it('rejects HTTP before obtaining or sending credentials', async () => {
+        const getAuthHeader = vi.fn();
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const [tool] = collectTools(
+            {paths: {'/rpc/test': {post: {}}}},
+            {...config, apiUrl: 'http://api.example.com'},
+            {getAuthHeader},
+        );
+        await expect(tool.invoke({})).rejects.toThrow('HTTPS');
+        expect(getAuthHeader).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('cancels HTTP error bodies without forwarding their content', async () => {
+        const cancel = vi.fn();
+        const response = new Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.enqueue(new TextEncoder().encode('secret-body'));
+                },
+                cancel,
+            }),
+            {status: 403},
+        );
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+        const [tool] = collectTools({paths: {'/rpc/test': {post: {}}}}, config, authProvider);
+        await expect(tool.invoke({})).rejects.toThrow(
+            'API call to POST /rpc/test failed: HTTP 403',
+        );
+        expect(cancel).toHaveBeenCalledOnce();
+    });
     it('collects only POST operations and ignores other methods', () => {
         const spec: OpenAPISpec = {
             paths: {
