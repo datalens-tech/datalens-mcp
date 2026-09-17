@@ -4,9 +4,10 @@ import {createAuthProvider} from './components/auth';
 import {loadConfig} from './components/config';
 import {fetchOpenAPISpec} from './components/openapi';
 import {collectTools, registerTools} from './components/tools';
+import {checkForUpdate, getPackageVersion} from './utils';
 
 const MCP_SERVER_NAME = 'datalens-public-api';
-const MCP_SERVER_VERSION = '0.1.2';
+const UPDATE_CHECK_TIMEOUT_MS = 2000;
 
 export const createApp = async (): Promise<Server> => {
     const config = loadConfig();
@@ -20,12 +21,36 @@ export const createApp = async (): Promise<Server> => {
         throw new Error('The OpenAPI schema has no enabled commands with a supported x-mcp-scope');
     }
 
+    const packageVersion = getPackageVersion();
     const server = new Server(
-        {name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION},
+        {name: MCP_SERVER_NAME, version: packageVersion},
         {capabilities: {tools: {}}},
     );
 
-    registerTools({server, tools, maxResponseChars: config.maxResponseChars});
+    let updateNotice: string | undefined;
+    let updateCheckStarted = false;
+    const updateController = new AbortController();
+    server.oninitialized = () => {
+        if (updateCheckStarted || updateController.signal.aborted) return;
+        updateCheckStarted = true;
+        const timer = setTimeout(() => updateController.abort(), UPDATE_CHECK_TIMEOUT_MS);
+        timer.unref();
+        checkForUpdate(packageVersion, updateController.signal)
+            .then((notice) => {
+                if (updateController.signal.aborted) return;
+                updateNotice = notice;
+                if (notice) console.error(notice);
+            })
+            .finally(() => clearTimeout(timer));
+    };
+    server.onclose = () => updateController.abort();
+
+    registerTools({
+        server,
+        tools,
+        maxResponseChars: config.maxResponseChars,
+        getUpdateNotice: () => updateNotice,
+    });
 
     return server;
 };

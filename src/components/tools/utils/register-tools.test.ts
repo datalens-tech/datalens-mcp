@@ -22,7 +22,13 @@ describe('registerTools', () => {
                 invoke: vi.fn(async (args) => args),
             }),
         );
-        registerTools({server, tools: commands, maxResponseChars: 1000});
+        let updateNotice: string | undefined;
+        registerTools({
+            server,
+            tools: commands,
+            maxResponseChars: 1000,
+            getUpdateNotice: () => updateNotice,
+        });
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
         await server.connect(serverTransport);
         await client.connect(clientTransport);
@@ -91,6 +97,16 @@ describe('registerTools', () => {
                     })),
                 );
             }
+            updateNotice = 'An update is available';
+            const withNotice = await client.callTool({
+                name: 'invoke_read_command',
+                arguments: {command_name: 'read', parameters: {id: 'test'}},
+            });
+            expect(readResult(withNotice)).toEqual({id: 'test'});
+            expect(withNotice.content).toEqual([
+                {type: 'text', text: JSON.stringify({id: 'test'})},
+                {type: 'text', text: updateNotice},
+            ]);
         } finally {
             await client.close();
             await server.close();

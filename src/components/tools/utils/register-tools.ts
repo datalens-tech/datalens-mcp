@@ -91,10 +91,12 @@ export const registerTools = ({
     server,
     tools,
     maxResponseChars,
+    getUpdateNotice,
 }: {
     server: Server;
     tools: CollectedTool[];
     maxResponseChars: number;
+    getUpdateNotice?: () => string | undefined;
 }): void => {
     const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
@@ -103,20 +105,31 @@ export const registerTools = ({
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Args;
+        const reply = (result: ToolResult): ToolResult => {
+            const notice = getUpdateNotice?.();
+            if (notice) result.content.push({type: 'text', text: notice});
+            return result;
+        };
 
         switch (name) {
             case TOOL_NAME.LIST_COMMANDS:
-                return handleListCommands(tools);
+                return reply(handleListCommands(tools));
             case TOOL_NAME.DESCRIBE_COMMANDS:
-                return handleDescribeCommands(args, toolsByName);
+                return reply(handleDescribeCommands(args, toolsByName));
             case TOOL_NAME.INVOKE_READ_COMMAND:
-                return handleInvokeCommand(args, toolsByName, maxResponseChars, 'read');
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'read'),
+                );
             case TOOL_NAME.INVOKE_WRITE_COMMAND:
-                return handleInvokeCommand(args, toolsByName, maxResponseChars, 'write');
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'write'),
+                );
             case TOOL_NAME.INVOKE_PRIVILEGED_COMMAND:
-                return handleInvokeCommand(args, toolsByName, maxResponseChars, 'privileged');
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'privileged'),
+                );
             default:
-                return toErrorResult(`Unknown tool: ${name}`);
+                return reply(toErrorResult(`Unknown tool: ${name}`));
         }
     });
 };

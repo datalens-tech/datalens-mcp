@@ -99,7 +99,7 @@ No install or build step — `npx` fetches the published package on demand:
   "mcpServers": {
     "datalens": {
       "command": "npx",
-      "args": ["-y", "@datalens-tech/mcp@latest"],
+      "args": ["-y", "--prefer-online", "@datalens-tech/mcp@latest"],
       "env": {
         "DATALENS_ORG_ID": "<org-id>"
       }
@@ -107,6 +107,16 @@ No install or build step — `npx` fetches the published package on demand:
   }
 }
 ```
+
+`--prefer-online` asks npm to revalidate cached package metadata. It does not
+upgrade an already running MCP process; restart the server to pick up updates.
+
+Once a client connects, the server checks npm's `latest` version in the background.
+If a newer stable package is available, it warns on stderr and appends a separate
+text notice to command tool responses without changing their API result block.
+The check sends no DataLens credentials, is bounded to two seconds and 64 KiB of
+decoded metadata, and never blocks command execution. Registry failures are
+ignored. The server neither installs updates nor stops older versions from working.
 
 ### Via a global install
 

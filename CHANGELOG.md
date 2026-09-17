@@ -11,5 +11,7 @@
 
 ### Added
 
+- Notify clients about newer stable npm releases without blocking commands or
+  installing updates; use the package version in MCP server metadata.
 - Support `DATALENS_OAUTH_TOKEN` for internal installations. When configured, it takes
   precedence over `DATALENS_API_AUTH_HEADER`.
