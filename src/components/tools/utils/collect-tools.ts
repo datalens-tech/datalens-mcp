@@ -73,14 +73,16 @@ const buildInvokeFn =
                 redirect: 'error',
             });
 
+            const data = await parseResponse(res);
+
             if (!res.ok) {
-                await res.body?.cancel();
+                const detail = typeof data === 'string' ? data : JSON.stringify(data);
                 throw new Error(
-                    `API call to ${HTTP_POST_METHOD} ${path} failed: HTTP ${res.status}`,
+                    `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
                 );
             }
 
-            return parseResponse(res);
+            return data;
         });
     };
 

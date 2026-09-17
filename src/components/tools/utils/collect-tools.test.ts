@@ -54,23 +54,22 @@ describe('collectTools', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('cancels HTTP error bodies without forwarding their content', async () => {
-        const cancel = vi.fn();
-        const response = new Response(
-            new ReadableStream({
-                start(controller) {
-                    controller.enqueue(new TextEncoder().encode('secret-body'));
-                },
-                cancel,
-            }),
-            {status: 403},
+    it('preserves JSON and text API error details', async () => {
+        const details = {code: 'ACCESS_DENIED', message: 'Permission denied'};
+        vi.stubGlobal(
+            'fetch',
+            vi
+                .fn()
+                .mockResolvedValueOnce(new Response(JSON.stringify(details), {status: 403}))
+                .mockResolvedValueOnce(new Response('Invalid input', {status: 400})),
         );
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
         const [tool] = collectTools({paths: {'/rpc/test': {post: {}}}}, config, authProvider);
         const error = await tool.invoke({}).catch((error: unknown) => error);
         expect(error).toBeInstanceOf(Error);
-        expect(String(error)).not.toContain('secret-body');
-        expect(cancel).toHaveBeenCalledOnce();
+        expect(String(error)).toContain(JSON.stringify(details));
+        const textError = await tool.invoke({}).catch((error: unknown) => error);
+        expect(textError).toBeInstanceOf(Error);
+        expect(String(textError)).toContain('Invalid input');
     });
     it('collects only POST operations and ignores other methods', () => {
         const spec: OpenAPISpec = {

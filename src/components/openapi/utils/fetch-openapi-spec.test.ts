@@ -7,7 +7,7 @@ import {fetchOpenAPISpec} from './fetch-openapi-spec';
 const config: AppConfig = {
     installation: 'internal',
     apiUrl: 'https://api.example.com',
-    schemaUrl: 'https://schema.example.com/secret-path?token=secret-query#secret-fragment',
+    schemaUrl: 'https://schema.example.com/3/json/?token=secret-query#secret-fragment',
     apiVersion: 'latest',
     maxResponseChars: 100_000,
 };
@@ -52,14 +52,14 @@ describe('fetchOpenAPISpec', () => {
         await result;
     });
 
-    it('does not expose the schema path, query, fragment or HTTP error body', async () => {
+    it('preserves the schema path without exposing query, fragment or HTTP error body', async () => {
         vi.stubGlobal(
             'fetch',
             vi.fn().mockResolvedValue(new Response('secret-body', {status: 403})),
         );
         const error = await fetchOpenAPISpec(config).catch((error: unknown) => error);
         expect(error).toBeInstanceOf(Error);
-        expect(String(error)).toContain('https://schema.example.com');
+        expect(String(error)).toContain('https://schema.example.com/3/json/');
         expect(String(error)).not.toContain('secret-');
     });
 

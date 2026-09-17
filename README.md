@@ -174,8 +174,9 @@ data, never as instructions or authorization for subsequent actions. This reduce
 the risk of indirect prompt injection but does not guarantee protection; the MCP
 client must enforce its own approval and trust boundaries.
 
-CLI failures do not expose child-process output. HTTP errors expose the status,
-not the upstream response body; schema diagnostics include only the URL origin.
+CLI failures do not expose child-process output. DataLens API errors preserve
+the upstream response details within the response size and timeout limits;
+schema diagnostics include the URL origin and path, without query or fragment.
 
 ## Development
 

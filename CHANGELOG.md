@@ -11,7 +11,7 @@
 
 - Bound decompressed response sizes and OpenAPI structure complexity; keep request
   timeouts active while reading response bodies.
-- Avoid exposing CLI output and upstream HTTP error bodies in diagnostics.
+- Avoid exposing CLI output and upstream schema HTTP error bodies in diagnostics.
 
 ### Added
 

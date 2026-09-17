@@ -11,7 +11,8 @@ import {validateOpenAPIStructure} from './validate-openapi-structure';
 
 export const fetchOpenAPISpec = async (config: AppConfig): Promise<OpenAPISpec> => {
     validateHttpsUrl(config.schemaUrl, 'DATALENS_SCHEMA_URL');
-    const schemaOrigin = new URL(config.schemaUrl).origin;
+    const schemaUrl = new URL(config.schemaUrl);
+    const schemaUrlForError = `${schemaUrl.origin}${schemaUrl.pathname}`;
     return withRequestTimeout('OpenAPI schema', async (signal) => {
         const res = await fetch(config.schemaUrl, {
             headers: {
@@ -24,7 +25,7 @@ export const fetchOpenAPISpec = async (config: AppConfig): Promise<OpenAPISpec> 
         if (!res.ok) {
             await res.body?.cancel();
             throw new Error(
-                `Failed to fetch OpenAPI schema from ${schemaOrigin}: HTTP ${res.status}`,
+                `Failed to fetch OpenAPI schema from ${schemaUrlForError}: HTTP ${res.status}`,
             );
         }
 
