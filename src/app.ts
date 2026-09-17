@@ -16,6 +16,9 @@ export const createApp = async (): Promise<Server> => {
     const spec = await fetchOpenAPISpec(config);
 
     const tools = collectTools(spec, config, authProvider);
+    if (!tools.length) {
+        throw new Error('The OpenAPI schema has no enabled commands with a supported x-mcp-scope');
+    }
 
     const server = new Server(
         {name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION},
