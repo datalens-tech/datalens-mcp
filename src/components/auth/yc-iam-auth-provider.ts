@@ -25,7 +25,7 @@ const checkYcBin = async (bin: string): Promise<void> => {
                 `yc CLI not found at "${bin}". Install it (https://yandex.cloud/docs/cli/quickstart) or set DATALENS_YC_BIN to the full path.`,
             );
         }
-        throw err;
+        throw new Error('Failed to execute yc CLI version check');
     }
 };
 
@@ -36,7 +36,12 @@ export const fetchYcToken = async (config: YcIamConfig): Promise<YcToken> => {
         args.push('--profile', config.profile);
     }
 
-    const {stdout} = await execFileAsync(config.bin, args);
+    let stdout: string;
+    try {
+        ({stdout} = await execFileAsync(config.bin, args));
+    } catch {
+        throw new Error('Failed to obtain an IAM token via yc CLI');
+    }
 
     let parsed: {iam_token?: unknown; expires_at?: unknown};
     try {
@@ -95,7 +100,7 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
             return await refresh();
         } catch (err) {
             if (token) {
-                console.error('Failed to refresh yc IAM token, keeping the previous one:', err);
+                console.error('Failed to refresh yc IAM token, keeping the previous one');
                 return token;
             }
             throw err;

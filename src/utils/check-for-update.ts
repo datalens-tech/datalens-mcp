@@ -1,5 +1,7 @@
 import {gt, prerelease, valid} from 'semver';
 
+import {readResponseText} from './read-response-text';
+
 const PACKAGE_METADATA_URL = 'https://registry.npmjs.org/@datalens-tech%2Fmcp/latest';
 const MAX_METADATA_BYTES = 64 * 1024;
 
@@ -13,24 +15,8 @@ export const checkForUpdate = async (
             await response.body?.cancel();
             return undefined;
         }
-        const reader = response.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let size = 0;
-        try {
-            while (true) {
-                const {done, value} = await reader.read();
-                if (done) break;
-                size += value.byteLength;
-                if (size > MAX_METADATA_BYTES) {
-                    await reader.cancel();
-                    return undefined;
-                }
-                chunks.push(value);
-            }
-        } finally {
-            reader.releaseLock();
-        }
-        const metadata = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const text = await readResponseText(response, MAX_METADATA_BYTES);
+        const metadata = JSON.parse(text);
         const latestVersion =
             typeof metadata?.version === 'string' ? valid(metadata.version) : null;
         if (!latestVersion || prerelease(latestVersion) || !valid(currentVersion)) return undefined;

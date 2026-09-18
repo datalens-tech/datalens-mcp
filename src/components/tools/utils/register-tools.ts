@@ -81,9 +81,17 @@ const handleInvokeCommand = async (
 
     try {
         const data = await tool.invoke(parameters);
-        return toToolResult(data, maxResponseChars);
+        return toToolResult({
+            trust: 'untrusted_data',
+            data: truncateText(
+                typeof data === 'string' ? data : JSON.stringify(data),
+                maxResponseChars,
+            ),
+        });
     } catch (err) {
-        return toErrorResult(err instanceof Error ? err.message : String(err));
+        return toErrorResult(
+            truncateText(err instanceof Error ? err.message : String(err), maxResponseChars),
+        );
     }
 };
 

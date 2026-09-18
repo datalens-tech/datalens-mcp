@@ -1,3 +1,5 @@
+import {validateHttpsUrl} from '../../utils';
+
 import {AppConfig, Installation, YcIamConfig} from './types';
 
 const DEFAULT_MAX_RESPONSE_CHARS = 100_000;
@@ -42,6 +44,9 @@ export const loadConfig = (): AppConfig => {
         throw new Error('DATALENS_API_URL env is not set (required for the internal installation)');
     }
     const apiUrl = (process.env.DATALENS_API_URL || DEFAULT_CLOUD_API_URL).replace(/\/$/, '');
+    const schemaUrl = process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}/json/`;
+    validateHttpsUrl(apiUrl, 'DATALENS_API_URL');
+    validateHttpsUrl(schemaUrl, 'DATALENS_SCHEMA_URL');
 
     const orgId = process.env.DATALENS_ORG_ID;
     if (isCloud && !orgId) {
@@ -60,7 +65,7 @@ export const loadConfig = (): AppConfig => {
         orgId: isCloud ? orgId : undefined,
         authHeader: resolveAuthHeader(installation),
         ycIam,
-        schemaUrl: process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}/json/`,
+        schemaUrl,
         apiVersion: process.env.DATALENS_API_VERSION ?? 'latest',
         maxResponseChars: parseMaxResponseChars(process.env.DATALENS_MAX_RESPONSE_CHARS),
     };

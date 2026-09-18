@@ -5,6 +5,32 @@ import type {JsonSchema} from '../types';
 import {bundleRefs} from './bundle-refs';
 
 describe('bundleRefs', () => {
+    it('bundles a wide reference graph within a linear node budget', () => {
+        const count = 1000;
+        const components: Record<string, JsonSchema> = {};
+        const refs = [];
+        for (let i = 0; i < count; i++) {
+            const name = `Component${i}`;
+            components[name] = {
+                type: 'object',
+                properties: {next: {$ref: `#/components/schemas/Component${(i + 1) % count}`}},
+            };
+            refs.push({$ref: `#/components/schemas/${name}`});
+        }
+        const result = bundleRefs({allOf: refs}, components, {remainingNodes: 10 * count});
+        expect(Object.keys(result.$defs as object)).toHaveLength(count);
+        expect(
+            (result.$defs as Record<string, JsonSchema>).Component999.properties?.next.$ref,
+        ).toBe('#/$defs/Component0');
+    });
+
+    it('shares the materialization budget across command schemas', () => {
+        const budget = {remainingNodes: 6};
+        const components = {Shared: {type: 'object', properties: {id: {type: 'string'}}}};
+        const root = {$ref: '#/components/schemas/Shared'};
+        expect(bundleRefs(root, components, budget).$defs).toEqual(components);
+        expect(() => bundleRefs(root, components, budget)).toThrow('maximum allowed complexity');
+    });
     it('returns the schema untouched when no components are provided', () => {
         const schema: JsonSchema = {$ref: '#/components/schemas/Foo'};
         expect(bundleRefs(schema, undefined)).toEqual(schema);
