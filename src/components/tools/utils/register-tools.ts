@@ -74,7 +74,9 @@ const handleInvokeCommand = async (
             ),
         });
     } catch (err) {
-        return toErrorResult(err instanceof Error ? err.message : String(err));
+        return toErrorResult(
+            truncateText(err instanceof Error ? err.message : String(err), maxResponseChars),
+        );
     }
 };
 

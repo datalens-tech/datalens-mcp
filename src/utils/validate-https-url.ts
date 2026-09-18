@@ -5,7 +5,13 @@ export const validateHttpsUrl = (value: string, name: string): void => {
     } catch {
         throw new Error(`${name} must be a valid HTTPS URL`);
     }
-    if (url.protocol !== 'https:' || url.username || url.password) {
-        throw new Error(`${name} must be an HTTPS URL without embedded credentials`);
+    const isLocalHttp =
+        process.env.NODE_ENV === 'development' &&
+        url.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if ((!isLocalHttp && url.protocol !== 'https:') || url.username || url.password) {
+        throw new Error(
+            `${name} must use HTTPS without embedded credentials; local HTTP is allowed only in development`,
+        );
     }
 };

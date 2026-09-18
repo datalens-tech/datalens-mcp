@@ -158,14 +158,16 @@ All configuration is via environment variables (see [.env.example](.env.example)
 
 ## Security boundaries
 
-API and schema URLs must use HTTPS without embedded credentials. Redirects are
-rejected. Local development endpoints must also provide HTTPS.
+API and schema URLs must use HTTPS without embedded credentials. HTTP is also
+allowed for `localhost`, `127.0.0.1`, and `[::1]` endpoints only when
+`NODE_ENV=development` (set by `npm run dev`). Redirects are rejected.
 
 Response bodies are limited before JSON parsing: 10 MiB for API calls and 20 MiB
 for OpenAPI, measured after decompression. The 30-second request timeout includes
 reading the body. OpenAPI documents are limited to a depth of 100 and 100,000 nodes.
 Bundling command input schemas has a shared budget of 1,000,000 nodes.
-`DATALENS_MAX_RESPONSE_CHARS` remains a separate limit on API data sent to the agent.
+`DATALENS_MAX_RESPONSE_CHARS` remains a separate limit on API data and error details
+sent to the agent.
 
 Command results are returned in a JSON envelope with `trust: "untrusted_data"`
 and a `data` string containing the serialized, potentially truncated API response.
