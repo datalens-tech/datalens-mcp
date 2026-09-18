@@ -6,8 +6,8 @@ import {
 } from '../../../utils';
 import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
-import type {JsonSchema, OpenAPIOperation, OpenAPISpec} from '../../openapi';
-import {bundleRefs} from '../../openapi';
+import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
+import {bundleRefs, isMcpScope} from '../../openapi';
 import {MAX_BUNDLED_SCHEMA_NODES} from '../../openapi/utils/bundle-refs';
 import type {CollectedTool} from '../types';
 
@@ -89,6 +89,7 @@ const buildInvokeFn =
 const buildTool = (
     path: string,
     operation: OpenAPIOperation,
+    scope: McpScope,
     components: OpenAPISpec['components'],
     config: AppConfig,
     baseHeaders: Record<string, string>,
@@ -104,6 +105,7 @@ const buildTool = (
 
     return {
         name,
+        scope,
         summary: operation.summary ?? name,
         description: buildDescription(operation, name),
         rawInputSchema,
@@ -124,10 +126,15 @@ export const collectTools = (
         if (!operation || operation['x-mcp-disabled']) {
             return [];
         }
+        const scope = operation['x-mcp-scope'];
+        if (!isMcpScope(scope)) {
+            return [];
+        }
         return [
             buildTool(
                 path,
                 operation,
+                scope,
                 spec.components,
                 config,
                 baseHeaders,

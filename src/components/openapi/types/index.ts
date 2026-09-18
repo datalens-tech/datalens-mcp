@@ -6,12 +6,15 @@ export type JsonSchema = {
     [key: string]: unknown;
 };
 
+export type McpScope = 'read' | 'write' | 'privileged';
+
 export type OpenAPIOperation = {
     operationId?: string;
     summary?: string;
     description?: string;
     deprecated?: boolean;
     'x-mcp-disabled'?: boolean;
+    'x-mcp-scope'?: McpScope;
     requestBody?: {
         content?: {
             'application/json'?: {

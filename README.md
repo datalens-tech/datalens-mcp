@@ -3,17 +3,34 @@
 An [MCP](https://modelcontextprotocol.io) server that exposes the **DataLens public API** to LLM agents.
 
 On startup it fetches the API's OpenAPI spec and turns every RPC endpoint into a
-callable command. Instead of registering hundreds of individual MCP tools (which
-would flood the model's context), it exposes a small **gateway** of three tools:
+callable command when the operation declares a supported `x-mcp-scope`. Instead
+of registering hundreds of individual MCP tools (which would flood the model's
+context), it exposes a small **gateway** of five tools:
 
-| Tool                | Purpose                                                                |
-| ------------------- | ---------------------------------------------------------------------- |
-| `list_commands`     | List all command names with one-line summaries. Call this first.       |
-| `describe_commands` | Return the full description and input schema for one or more commands. |
-| `invoke_command`    | Call a command by name, passing its parameters.                        |
+| Tool                        | Purpose                                                                |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `list_commands`             | List all command names with one-line summaries. Call this first.       |
+| `describe_commands`         | Return the full description and input schema for one or more commands. |
+| `invoke_read_command`       | Call a command classified as `read`.                                   |
+| `invoke_write_command`      | Call a command classified as `write`.                                  |
+| `invoke_privileged_command` | Call a command classified as `privileged`.                             |
 
 The typical agent flow is: `list_commands` → `describe_commands` for the ones it
-needs → `invoke_command`.
+needs → the invocation tool indicated by `invoke_tool`.
+
+Both discovery tools include each command's `scope` and `invoke_tool`. Invocation
+checks the scope on the server before executing the API call. Operations without
+a supported scope, or marked `x-mcp-disabled`, are unavailable. An OpenAPI schema
+with no classified commands causes startup to fail rather than exposing an
+unclassified gateway.
+
+The old `invoke_command` tool is removed. Update client approval policies to
+allow `invoke_read_command` separately from write and privileged calls. Privileged
+calls require explicit user approval; descriptions and MCP annotations are hints,
+not an approval mechanism. Clients must enforce approvals themselves, and DataLens
+continues to enforce the user's permissions for every API call.
+
+Deploy an OpenAPI schema with scope classifications before adopting this release.
 
 ## Authorization
 
@@ -82,7 +99,7 @@ No install or build step — `npx` fetches the published package on demand:
   "mcpServers": {
     "datalens": {
       "command": "npx",
-      "args": ["-y", "@datalens-tech/mcp@latest"],
+      "args": ["-y", "--prefer-online", "@datalens-tech/mcp@latest"],
       "env": {
         "DATALENS_ORG_ID": "<org-id>"
       }
@@ -90,6 +107,16 @@ No install or build step — `npx` fetches the published package on demand:
   }
 }
 ```
+
+`--prefer-online` asks npm to revalidate cached package metadata. It does not
+upgrade an already running MCP process; restart the server to pick up updates.
+
+Once a client connects, the server checks npm's `latest` version in the background.
+If a newer stable package is available, it warns on stderr and appends a separate
+text notice to command tool responses without changing their API result block.
+The check sends no DataLens credentials, is bounded to two seconds and 64 KiB of
+decoded metadata, and never blocks command execution. Registry failures are
+ignored. The server neither installs updates nor stops older versions from working.
 
 ### Via a global install
 
