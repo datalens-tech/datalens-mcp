@@ -2,6 +2,15 @@ import type {JsonSchema} from '../types';
 
 const OPENAPI_COMPONENT_REF_PREFIX = '#/components/schemas/';
 const DEFS_REF_PREFIX = '#/$defs/';
+export const MAX_BUNDLED_SCHEMA_NODES = 1_000_000;
+
+type SchemaBudget = {remainingNodes: number};
+
+const consumeNode = (budget: SchemaBudget): void => {
+    if (--budget.remainingNodes < 0) {
+        throw new Error('Bundled command schemas exceed the maximum allowed complexity');
+    }
+};
 
 // Rewrite a single #/components/schemas/X ref string to #/$defs/X, recording the
 // component name in `used`. Non-component strings are returned unchanged.
@@ -17,18 +26,21 @@ const rewriteRefString = (ref: string, used: Set<string>): string => {
 // A discriminator's `mapping` maps discriminator values to component refs, but those
 // refs live as the *values* of arbitrary keys rather than under a `$ref` key, so the
 // generic walk below would miss them. Rewrite each mapped ref explicitly.
-function rewriteDiscriminator(value: object, used: Set<string>): JsonSchema {
+function rewriteDiscriminator(value: object, used: Set<string>, budget: SchemaBudget): JsonSchema {
+    consumeNode(budget);
     const result: JsonSchema = {};
 
     for (const [key, val] of Object.entries(value)) {
         if (key === 'mapping' && val !== null && typeof val === 'object' && !Array.isArray(val)) {
+            consumeNode(budget);
             const mapping: Record<string, unknown> = {};
             for (const [target, ref] of Object.entries(val)) {
+                consumeNode(budget);
                 mapping[target] = typeof ref === 'string' ? rewriteRefString(ref, used) : ref;
             }
             result.mapping = mapping;
         } else {
-            result[key] = rewriteRefs(val, used);
+            result[key] = rewriteRefs(val, used, budget);
         }
     }
 
@@ -38,9 +50,10 @@ function rewriteDiscriminator(value: object, used: Set<string>): JsonSchema {
 // Walk a value tree, rewriting every #/components/schemas/X ref to #/$defs/X and
 // recording each referenced component name in `used`. Sibling keys are preserved.
 // Refs appear both under `$ref` keys and inside `discriminator.mapping` values.
-function rewriteRefs(value: unknown, used: Set<string>): unknown {
+function rewriteRefs(value: unknown, used: Set<string>, budget: SchemaBudget): unknown {
+    consumeNode(budget);
     if (Array.isArray(value)) {
-        return value.map((item) => rewriteRefs(item, used));
+        return value.map((item) => rewriteRefs(item, used, budget));
     }
 
     if (value === null || typeof value !== 'object') {
@@ -53,9 +66,9 @@ function rewriteRefs(value: unknown, used: Set<string>): unknown {
         if (key === '$ref' && typeof val === 'string') {
             result.$ref = rewriteRefString(val, used);
         } else if (key === 'discriminator' && val !== null && typeof val === 'object') {
-            result.discriminator = rewriteDiscriminator(val, used);
+            result.discriminator = rewriteDiscriminator(val, used, budget);
         } else {
-            result[key] = rewriteRefs(val, used);
+            result[key] = rewriteRefs(val, used, budget);
         }
     }
 
@@ -73,38 +86,24 @@ function rewriteRefs(value: unknown, used: Set<string>): unknown {
 export const bundleRefs = (
     schema: JsonSchema,
     components: Record<string, JsonSchema> | undefined,
+    budget: SchemaBudget = {remainingNodes: MAX_BUNDLED_SCHEMA_NODES},
 ): JsonSchema => {
     if (!components) {
         return schema;
     }
 
     const used = new Set<string>();
-    const root = rewriteRefs(schema, used) as JsonSchema;
+    const root = rewriteRefs(schema, used, budget) as JsonSchema;
 
     const defs: Record<string, JsonSchema> = {};
-    const processed = new Set<string>();
-    const queue = [...used];
-
-    while (queue.length > 0) {
-        const name = queue.shift() as string;
-        if (processed.has(name)) {
-            continue;
-        }
-        processed.add(name);
-
+    for (const name of used) {
         const target = components[name];
         if (target === undefined) {
             defs[name] = {type: 'object', description: `Unresolved reference: ${name}`};
             continue;
         }
 
-        defs[name] = rewriteRefs(target, used) as JsonSchema;
-
-        for (const ref of used) {
-            if (!processed.has(ref)) {
-                queue.push(ref);
-            }
-        }
+        defs[name] = rewriteRefs(target, used, budget) as JsonSchema;
     }
 
     if (Object.keys(defs).length === 0) {

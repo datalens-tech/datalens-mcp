@@ -1,8 +1,14 @@
-import {withRequestTimeout} from '../../../utils';
+import {
+    MAX_API_RESPONSE_BYTES,
+    readResponseText,
+    validateHttpsUrl,
+    withRequestTimeout,
+} from '../../../utils';
 import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {bundleRefs} from '../../openapi';
+import {MAX_BUNDLED_SCHEMA_NODES} from '../../openapi/utils/bundle-refs';
 import type {CollectedTool} from '../types';
 
 const HTTP_POST_METHOD = 'POST';
@@ -38,7 +44,7 @@ const buildDescription = (operation: OpenAPIOperation, name: string): string =>
         .join('');
 
 const parseResponse = async (res: Response): Promise<unknown> => {
-    const text = await res.text();
+    const text = await readResponseText(res, MAX_API_RESPONSE_BYTES);
     try {
         return JSON.parse(text);
     } catch {
@@ -54,28 +60,30 @@ const buildInvokeFn =
         authProvider: AuthProvider,
     ): CollectedTool['invoke'] =>
     async (args) => {
+        validateHttpsUrl(requestUrl, 'API request URL');
         const authHeader = await authProvider.getAuthHeader();
         const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
 
-        const res = await withRequestTimeout(`${HTTP_POST_METHOD} ${requestUrl}`, (signal) =>
-            fetch(requestUrl, {
+        return withRequestTimeout('DataLens API request', async (signal) => {
+            const res = await fetch(requestUrl, {
                 method: HTTP_POST_METHOD,
                 headers,
                 body: JSON.stringify(args),
                 signal,
-            }),
-        );
+                redirect: 'error',
+            });
 
-        const data = await parseResponse(res);
+            const data = await parseResponse(res);
 
-        if (!res.ok) {
-            const detail = typeof data === 'string' ? data : JSON.stringify(data);
-            throw new Error(
-                `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
-            );
-        }
+            if (!res.ok) {
+                const detail = typeof data === 'string' ? data : JSON.stringify(data);
+                throw new Error(
+                    `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
+                );
+            }
 
-        return data;
+            return data;
+        });
     };
 
 const buildTool = (
@@ -85,11 +93,12 @@ const buildTool = (
     config: AppConfig,
     baseHeaders: Record<string, string>,
     authProvider: AuthProvider,
+    schemaBudget: {remainingNodes: number},
 ): CollectedTool => {
     const name = toolNameFromPath(path);
     const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
     const rawInputSchema = bodySchema
-        ? bundleRefs(bodySchema, components?.schemas)
+        ? bundleRefs(bodySchema, components?.schemas, schemaBudget)
         : EMPTY_OBJECT_SCHEMA;
     const requestUrl = `${config.apiUrl}${path}`;
 
@@ -108,12 +117,23 @@ export const collectTools = (
     authProvider: AuthProvider,
 ): CollectedTool[] => {
     const baseHeaders = buildBaseHeaders(config);
+    const schemaBudget = {remainingNodes: MAX_BUNDLED_SCHEMA_NODES};
 
     return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
         const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
         if (!operation || operation['x-mcp-disabled']) {
             return [];
         }
-        return [buildTool(path, operation, spec.components, config, baseHeaders, authProvider)];
+        return [
+            buildTool(
+                path,
+                operation,
+                spec.components,
+                config,
+                baseHeaders,
+                authProvider,
+                schemaBudget,
+            ),
+        ];
     });
 };

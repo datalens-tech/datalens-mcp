@@ -156,6 +156,30 @@ All configuration is via environment variables (see [.env.example](.env.example)
 | `DATALENS_API_VERSION`        |          | `latest`                           | Sent in the `x-dl-api-version` header.                                                                         |
 | `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                           | Responses longer than this are truncated before reaching the client.                                           |
 
+## Security boundaries
+
+API and schema URLs must use HTTPS without embedded credentials. HTTP is also
+allowed for `localhost`, `127.0.0.1`, and `[::1]` endpoints only when
+`NODE_ENV=development` (set by `npm run dev`). Redirects are rejected.
+
+Response bodies are limited before JSON parsing: 10 MiB for API calls and 20 MiB
+for OpenAPI, measured after decompression. The 30-second request timeout includes
+reading the body. OpenAPI documents are limited to a depth of 100 and 100,000 nodes.
+Bundling command input schemas has a shared budget of 1,000,000 nodes.
+`DATALENS_MAX_RESPONSE_CHARS` remains a separate limit on API data and error details
+sent to the agent.
+
+Command results are returned in a JSON envelope with `trust: "untrusted_data"`
+and a `data` string containing the serialized, potentially truncated API response.
+Tool descriptions instruct agents to treat API content and command metadata as
+data, never as instructions or authorization for subsequent actions. This reduces
+the risk of indirect prompt injection but does not guarantee protection; the MCP
+client must enforce its own approval and trust boundaries.
+
+CLI failures do not expose child-process output. DataLens API errors preserve
+the upstream response details within the response size and timeout limits;
+schema diagnostics include the URL origin and path, without query or fragment.
+
 ## Development
 
 ```bash
