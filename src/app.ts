@@ -1,3 +1,6 @@
+import {readFileSync} from 'fs';
+import path from 'path';
+
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 
 import {createAuthProvider} from './components/auth';
@@ -6,7 +9,9 @@ import {fetchOpenAPISpec} from './components/openapi';
 import {collectTools, registerTools} from './components/tools';
 
 const MCP_SERVER_NAME = 'datalens-public-api';
-const MCP_SERVER_VERSION = '0.1.2';
+const {version: MCP_SERVER_VERSION} = JSON.parse(
+    readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'),
+) as {version: string};
 
 export const createApp = async (): Promise<Server> => {
     const config = loadConfig();
