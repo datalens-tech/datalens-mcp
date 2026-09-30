@@ -2,7 +2,8 @@ import type {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 
 import {truncateText} from '../../../utils';
-import {TOOL_DEFS, TOOL_NAME} from '../constants';
+import type {McpScope} from '../../openapi';
+import {INVOKE_TOOL_BY_SCOPE, TOOL_DEFS, TOOL_NAME} from '../constants';
 import type {CollectedTool} from '../types';
 
 type ToolResult = {content: {type: 'text'; text: string}[]; isError?: true};
@@ -21,7 +22,14 @@ const toErrorResult = (message: string): ToolResult => ({
 });
 
 const handleListCommands = (tools: CollectedTool[]): ToolResult =>
-    toToolResult(tools.map(({name, summary}) => ({command_name: name, summary})));
+    toToolResult(
+        tools.map(({name, summary, scope}) => ({
+            command_name: name,
+            summary,
+            scope,
+            invoke_tool: INVOKE_TOOL_BY_SCOPE[scope],
+        })),
+    );
 
 const handleDescribeCommands = (
     args: Args,
@@ -40,6 +48,8 @@ const handleDescribeCommands = (
         return {
             command_name: tool.name,
             description: tool.description,
+            scope: tool.scope,
+            invoke_tool: INVOKE_TOOL_BY_SCOPE[tool.scope],
             inputSchema: tool.rawInputSchema,
         };
     });
@@ -51,15 +61,20 @@ const handleInvokeCommand = async (
     args: Args,
     toolsByName: Map<string, CollectedTool>,
     maxResponseChars: number,
+    scope: McpScope,
 ): Promise<ToolResult> => {
     const commandName = args['command_name'];
     if (typeof commandName !== 'string' || !commandName) {
-        return toErrorResult('invoke_command requires a command_name string');
+        return toErrorResult('A scoped invocation requires a command_name string');
     }
 
     const tool = toolsByName.get(commandName);
     if (!tool) {
         return toErrorResult(`Unknown command: ${commandName}`);
+    }
+
+    if (tool.scope !== scope) {
+        return toErrorResult(`Command ${commandName} requires ${INVOKE_TOOL_BY_SCOPE[tool.scope]}`);
     }
 
     const parameters = (args['parameters'] ?? {}) as Args;
@@ -84,10 +99,12 @@ export const registerTools = ({
     server,
     tools,
     maxResponseChars,
+    getUpdateNotice,
 }: {
     server: Server;
     tools: CollectedTool[];
     maxResponseChars: number;
+    getUpdateNotice?: () => string | undefined;
 }): void => {
     const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
@@ -96,16 +113,31 @@ export const registerTools = ({
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Args;
+        const reply = (result: ToolResult): ToolResult => {
+            const notice = getUpdateNotice?.();
+            if (notice) result.content.push({type: 'text', text: notice});
+            return result;
+        };
 
         switch (name) {
             case TOOL_NAME.LIST_COMMANDS:
-                return handleListCommands(tools);
+                return reply(handleListCommands(tools));
             case TOOL_NAME.DESCRIBE_COMMANDS:
-                return handleDescribeCommands(args, toolsByName);
-            case TOOL_NAME.INVOKE_COMMAND:
-                return handleInvokeCommand(args, toolsByName, maxResponseChars);
+                return reply(handleDescribeCommands(args, toolsByName));
+            case TOOL_NAME.INVOKE_READ_COMMAND:
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'read'),
+                );
+            case TOOL_NAME.INVOKE_WRITE_COMMAND:
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'write'),
+                );
+            case TOOL_NAME.INVOKE_PRIVILEGED_COMMAND:
+                return reply(
+                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'privileged'),
+                );
             default:
-                return toErrorResult(`Unknown tool: ${name}`);
+                return reply(toErrorResult(`Unknown tool: ${name}`));
         }
     });
 };
