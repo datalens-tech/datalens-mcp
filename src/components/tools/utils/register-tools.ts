@@ -1,5 +1,4 @@
-import type {Server} from '@modelcontextprotocol/sdk/server/index.js';
-import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import type {Server} from '@modelcontextprotocol/server';
 
 import {truncateText} from '../../../utils';
 import type {McpScope} from '../../openapi';
@@ -108,9 +107,9 @@ export const registerTools = ({
 }): void => {
     const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({tools: TOOL_DEFS}));
+    server.setRequestHandler('tools/list', async () => ({tools: TOOL_DEFS}));
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Args;
         const reply = (result: ToolResult): ToolResult => {

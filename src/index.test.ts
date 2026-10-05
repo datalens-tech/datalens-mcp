@@ -1,0 +1,130 @@
+import {spawn} from 'child_process';
+import {once} from 'events';
+import {mkdtemp, rm, writeFile} from 'fs/promises';
+import {tmpdir} from 'os';
+import path from 'path';
+import {createInterface} from 'readline';
+
+import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+
+let fixtureDir: string;
+let preload: string;
+
+beforeAll(async () => {
+    fixtureDir = await mkdtemp(path.join(tmpdir(), 'datalens-mcp-stdio-'));
+    preload = path.join(fixtureDir, 'fetch.cjs');
+    await writeFile(
+        preload,
+        `globalThis.fetch = async (url, options) => {
+            if (String(url).includes('registry.npmjs.org')) {
+                return new Promise((_resolve, reject) => {
+                    options.signal.addEventListener('abort', () => reject(new Error('Aborted')));
+                });
+            }
+            return new Response(JSON.stringify(String(url).endsWith('/json/')
+                ? {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}}
+                : {ok: true}));
+        };`,
+    );
+});
+
+afterAll(async () => {
+    if (fixtureDir) await rm(fixtureDir, {recursive: true, force: true});
+});
+
+describe('stdio CLI', () => {
+    it.each([
+        ['legacy', 'eof'],
+        ['modern', 'eof'],
+        ['modern', 'SIGINT'],
+        ['modern', 'SIGTERM'],
+    ] as const)('serves %s clients and exits cleanly on %s', async (era, shutdown) => {
+        const child = spawn(
+            process.execPath,
+            ['--require', 'ts-node/register/transpile-only', '--require', preload, 'src/index.ts'],
+            {
+                cwd: path.resolve(__dirname, '..'),
+                env: {
+                    PATH: process.env.PATH,
+                    NODE_ENV: 'test',
+                    DATALENS_ORG_ID: 'test',
+                    DATALENS_YC_STATIC_AUTH: '1',
+                },
+                stdio: ['pipe', 'pipe', 'pipe'],
+            },
+        );
+        const exited = once(child, 'exit');
+        let stderr = '';
+        child.stderr.setEncoding('utf8').on('data', (chunk) => {
+            stderr += chunk;
+        });
+        const lines = createInterface({input: child.stdout});
+        const replies = lines[Symbol.asyncIterator]();
+        let id = 0;
+        const request = async (method: string, params: Record<string, unknown> = {}) => {
+            const requestId = ++id;
+            child.stdin.write(
+                JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: requestId,
+                    method,
+                    params: {
+                        ...params,
+                        ...(era === 'modern'
+                            ? {
+                                  _meta: {
+                                      'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                                      'io.modelcontextprotocol/clientCapabilities': {},
+                                  },
+                              }
+                            : {}),
+                    },
+                }) + '\n',
+            );
+            const line = await replies.next();
+            expect(line.done).toBe(false);
+            const reply = JSON.parse(line.value!);
+            expect(reply.id).toBe(requestId);
+            expect(reply.error).toBeUndefined();
+            return reply.result;
+        };
+        try {
+            if (era === 'legacy') {
+                const result = await request('initialize', {
+                    protocolVersion: '2025-11-25',
+                    capabilities: {},
+                    clientInfo: {name: 'stdio-test', version: '1'},
+                });
+                expect(result.protocolVersion).toBe('2025-11-25');
+                child.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');
+            } else {
+                await request('server/discover');
+            }
+            const listed = await request('tools/list');
+            expect(listed.tools).toHaveLength(5);
+            const called = await request('tools/call', {
+                name: 'invoke_read_command',
+                arguments: {command_name: 'test'},
+            });
+            expect(called.isError).not.toBe(true);
+            expect(JSON.parse(called.content[0].text)).toEqual({
+                trust: 'untrusted_data',
+                data: '{"ok":true}',
+            });
+            const denied = await request('tools/call', {
+                name: 'invoke_write_command',
+                arguments: {command_name: 'test'},
+            });
+            expect(denied.isError).toBe(true);
+            if (shutdown === 'eof') child.stdin.end();
+            else child.kill(shutdown);
+            expect(await exited).toEqual([0, null]);
+            expect(stderr).toContain('DataLens MCP server running on stdio');
+            expect(stderr).not.toContain('DataLens MCP error:');
+        } finally {
+            lines.close();
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+            await exited;
+        }
+    });
+});

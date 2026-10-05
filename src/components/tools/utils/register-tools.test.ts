@@ -1,6 +1,5 @@
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {Server} from '@modelcontextprotocol/sdk/server/index.js';
+import {Client, InMemoryTransport} from '@modelcontextprotocol/client';
+import {Server} from '@modelcontextprotocol/server';
 import {describe, expect, it, vi} from 'vitest';
 
 import {INVOKE_TOOL_BY_SCOPE} from '../constants';

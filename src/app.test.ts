@@ -1,5 +1,5 @@
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {Client, InMemoryTransport} from '@modelcontextprotocol/client';
+import {serveStdio} from '@modelcontextprotocol/server/stdio';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {createApp} from './app';
@@ -20,43 +20,72 @@ describe('createApp update check', () => {
         vi.useRealTimers();
     });
 
-    it('does not block commands on registry stalls and aborts the check on timeout or close', async () => {
-        vi.useFakeTimers();
-        for (const finish of ['timeout', 'close']) {
-            let signal: AbortSignal | undefined;
-            const fetchMock = vi.fn((_url, options: {signal: AbortSignal}) => {
-                signal = options.signal;
-                return new Promise<Response>((_resolve, reject) => {
-                    options.signal.addEventListener('abort', () =>
-                        reject(new DOMException('Aborted', 'AbortError')),
-                    );
-                });
+    it('starts the update check before any client handshake and aborts it on close', async () => {
+        let signal: AbortSignal | undefined;
+        const fetchMock = vi.fn((_url, options: {signal: AbortSignal}) => {
+            signal = options.signal;
+            return new Promise<Response>((_resolve, reject) => {
+                options.signal.addEventListener('abort', () =>
+                    reject(new DOMException('Aborted', 'AbortError')),
+                );
             });
-            vi.stubGlobal('fetch', fetchMock);
-            const server = await createApp();
-            expect(fetchMock).not.toHaveBeenCalled();
-            const client = new Client({name: 'test', version: '1'});
-            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-            await server.connect(serverTransport);
-            await client.connect(clientTransport);
-            try {
-                expect(client.getServerVersion()?.version).toBe(getPackageVersion());
-                const result = await client.callTool({name: 'list_commands'});
-                expect(result.isError).not.toBe(true);
-                expect(fetchMock).toHaveBeenCalledOnce();
-                expect(signal?.aborted).toBe(false);
-                if (finish === 'timeout') await vi.advanceTimersByTimeAsync(2000);
-                else await server.close();
-                expect(signal?.aborted).toBe(true);
-                if (finish === 'timeout') {
-                    const retry = await client.callTool({name: 'list_commands'});
-                    expect(retry.isError).not.toBe(true);
-                    expect(fetchMock).toHaveBeenCalledOnce();
-                }
-            } finally {
-                await client.close();
-                await server.close();
-            }
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const server = await createApp();
+        const [, serverTransport] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverTransport);
+        try {
+            expect(fetchMock).toHaveBeenCalledOnce();
+            expect(signal?.aborted).toBe(false);
+        } finally {
+            await server.close();
         }
+        expect(signal?.aborted).toBe(true);
     });
+
+    it.each(['legacy', 'modern'] as const)(
+        'bounds update checks on %s connections',
+        async (era) => {
+            vi.useFakeTimers();
+            for (const finish of ['timeout', 'close']) {
+                let signal: AbortSignal | undefined;
+                const fetchMock = vi.fn((_url, options: {signal: AbortSignal}) => {
+                    signal = options.signal;
+                    return new Promise<Response>((_resolve, reject) => {
+                        options.signal.addEventListener('abort', () =>
+                            reject(new DOMException('Aborted', 'AbortError')),
+                        );
+                    });
+                });
+                vi.stubGlobal('fetch', fetchMock);
+                const client = new Client(
+                    {name: 'test', version: '1'},
+                    {versionNegotiation: {mode: era === 'modern' ? {pin: '2026-07-28'} : 'legacy'}},
+                );
+                const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+                const handle = serveStdio(createApp, {transport: serverTransport});
+                expect(fetchMock).not.toHaveBeenCalled();
+                await client.connect(clientTransport);
+                try {
+                    expect(client.getProtocolEra()).toBe(era);
+                    expect(client.getServerVersion()?.version).toBe(getPackageVersion());
+                    const result = await client.callTool({name: 'list_commands'});
+                    expect(result.isError).not.toBe(true);
+                    expect(fetchMock).toHaveBeenCalledOnce();
+                    expect(signal?.aborted).toBe(false);
+                    if (finish === 'timeout') await vi.advanceTimersByTimeAsync(2000);
+                    else await handle.close();
+                    expect(signal?.aborted).toBe(true);
+                    if (finish === 'timeout') {
+                        const retry = await client.callTool({name: 'list_commands'});
+                        expect(retry.isError).not.toBe(true);
+                        expect(fetchMock).toHaveBeenCalledOnce();
+                    }
+                } finally {
+                    await client.close();
+                    await handle.close();
+                }
+            }
+        },
+    );
 });

@@ -1,4 +1,4 @@
-import {Server} from '@modelcontextprotocol/sdk/server/index.js';
+import {Server} from '@modelcontextprotocol/server';
 
 import {createAuthProvider} from './components/auth';
 import {loadConfig} from './components/config';
@@ -28,21 +28,7 @@ export const createApp = async (): Promise<Server> => {
     );
 
     let updateNotice: string | undefined;
-    let updateCheckStarted = false;
     const updateController = new AbortController();
-    server.oninitialized = () => {
-        if (updateCheckStarted || updateController.signal.aborted) return;
-        updateCheckStarted = true;
-        const timer = setTimeout(() => updateController.abort(), UPDATE_CHECK_TIMEOUT_MS);
-        timer.unref();
-        checkForUpdate(packageVersion, updateController.signal)
-            .then((notice) => {
-                if (updateController.signal.aborted) return;
-                updateNotice = notice;
-                if (notice) console.error(notice);
-            })
-            .finally(() => clearTimeout(timer));
-    };
     server.onclose = () => updateController.abort();
 
     registerTools({
@@ -51,6 +37,16 @@ export const createApp = async (): Promise<Server> => {
         maxResponseChars: config.maxResponseChars,
         getUpdateNotice: () => updateNotice,
     });
+
+    const timer = setTimeout(() => updateController.abort(), UPDATE_CHECK_TIMEOUT_MS);
+    timer.unref();
+    checkForUpdate(packageVersion, updateController.signal)
+        .then((notice) => {
+            if (updateController.signal.aborted) return;
+            updateNotice = notice;
+            if (notice) console.error(notice);
+        })
+        .finally(() => clearTimeout(timer));
 
     return server;
 };

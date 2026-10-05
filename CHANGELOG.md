@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Migrate to MCP TypeScript SDK v2 and `serveStdio`, supporting both modern and
+  legacy clients. Require Node.js 20 or newer.
+- Load the OpenAPI schema when a client connects and close the connection cleanly
+  on SIGINT, SIGTERM, or stdin EOF.
+
 ## 0.2.0
 
 ### Changed
