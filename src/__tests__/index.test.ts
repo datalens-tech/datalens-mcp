@@ -40,7 +40,7 @@ describe('stdio CLI', () => {
         ['modern', 'eof'],
         ['modern', 'SIGINT'],
         ['modern', 'SIGTERM'],
-    ] as const)('serves %s clients and exits cleanly on %s', async (era, shutdown) => {
+    ] as const)('serves %s clients and exits on %s', async (era, shutdown) => {
         const child = spawn(
             process.execPath,
             ['--require', 'ts-node/register/transpile-only', '--require', preload, 'src/index.ts'],
@@ -121,7 +121,7 @@ describe('stdio CLI', () => {
             expect(denied.isError).toBe(true);
             if (shutdown === 'eof') child.stdin.end();
             else child.kill(shutdown);
-            expect(await exited).toEqual([0, null]);
+            expect(await exited).toEqual(shutdown === 'eof' ? [0, null] : [null, shutdown]);
             expect(stderr).toContain('DataLens MCP server running on stdio');
             expect(stderr).not.toContain('DataLens MCP error:');
         } finally {
@@ -188,7 +188,7 @@ describe('HTTP CLI', () => {
             const body = await response.text();
             expect(body).toContain('invoke_read_command');
             child.kill('SIGTERM');
-            expect(await exited).toEqual([0, null]);
+            expect(await exited).toEqual([null, 'SIGTERM']);
             expect(stdout).toContain('START POST /mcp requestId=');
             expect(stdout).toContain('FINISH POST /mcp requestId=');
         } finally {

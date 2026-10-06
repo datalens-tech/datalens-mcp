@@ -47,8 +47,5 @@ export const createHttpApp = async (config: HttpConfig) => {
     app.use(notFound);
     app.use(handleError);
 
-    return {
-        app,
-        closeMcp: () => handler.close(),
-    };
+    return app;
 };

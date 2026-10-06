@@ -35,7 +35,7 @@ const spec = {
 };
 
 const servers: Server[] = [];
-const listen = async ({app}: Awaited<ReturnType<typeof createHttpApp>>) => {
+const listen = async (app: Awaited<ReturnType<typeof createHttpApp>>) => {
     const server = app.listen(0, '127.0.0.1');
     servers.push(server);
     await once(server, 'listening');
@@ -170,7 +170,6 @@ describe('HTTP server', () => {
                 ).toBe(true);
             } finally {
                 await Promise.all(peers.map(({client}) => client.close()));
-                await app.closeMcp();
             }
         },
     );
@@ -180,45 +179,21 @@ describe('HTTP server', () => {
         vi.stubGlobal('fetch', upstream);
         const app = await createHttpApp(httpConfig);
         const url = await listen(app);
-        try {
-            const response = await nativeFetch(new URL('/ping', url));
-            expect(response.status).toBe(200);
-            expect(await response.text()).toBe('OK');
-            expect((await nativeFetch(new URL('/other', url))).status).toBe(404);
-            expect((await nativeFetch(new URL('/ping', url), {method: 'POST'})).status).toBe(404);
-            for (const headers of [
-                {Host: 'mcp.example.com'},
-                {Origin: 'https://client.example.com'},
-            ]) {
-                const status = await new Promise<number | undefined>((resolve, reject) => {
-                    const req = request(
-                        url,
-                        {
-                            method: 'POST',
-                            headers: {
-                                ...headers,
-                                'content-type': 'application/json',
-                                accept: 'application/json, text/event-stream',
-                            },
-                        },
-                        (response) => {
-                            response.resume();
-                            response.on('end', () => resolve(response.statusCode));
-                        },
-                    );
-                    req.on('error', reject);
-                    req.end(JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'}));
-                });
-                expect(status).toBe(200);
-            }
-            const oversized = await new Promise<number | undefined>((resolve, reject) => {
+        const response = await nativeFetch(new URL('/ping', url));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe('OK');
+        expect((await nativeFetch(new URL('/other', url))).status).toBe(404);
+        expect((await nativeFetch(new URL('/ping', url), {method: 'POST'})).status).toBe(404);
+        for (const headers of [{Host: 'mcp.example.com'}, {Origin: 'https://client.example.com'}]) {
+            const status = await new Promise<number | undefined>((resolve, reject) => {
                 const req = request(
                     url,
                     {
                         method: 'POST',
                         headers: {
+                            ...headers,
                             'content-type': 'application/json',
-                            'content-length': 4 * 1024 * 1024 + 1,
+                            accept: 'application/json, text/event-stream',
                         },
                     },
                     (response) => {
@@ -227,13 +202,30 @@ describe('HTTP server', () => {
                     },
                 );
                 req.on('error', reject);
-                req.end('x'.repeat(4 * 1024 * 1024 + 1));
+                req.end(JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'}));
             });
-            expect(oversized).toBe(413);
-            expect(upstream).toHaveBeenCalledOnce();
-        } finally {
-            await app.closeMcp();
+            expect(status).toBe(200);
         }
+        const oversized = await new Promise<number | undefined>((resolve, reject) => {
+            const req = request(
+                url,
+                {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'content-length': 4 * 1024 * 1024 + 1,
+                    },
+                },
+                (response) => {
+                    response.resume();
+                    response.on('end', () => resolve(response.statusCode));
+                },
+            );
+            req.on('error', reject);
+            req.end('x'.repeat(4 * 1024 * 1024 + 1));
+        });
+        expect(oversized).toBe(413);
+        expect(upstream).toHaveBeenCalledOnce();
     });
 
     it('handles parsed bodies above 100 KiB and returns no caller data for malformed JSON', async () => {
@@ -247,38 +239,34 @@ describe('HTTP server', () => {
             'mcp-protocol-version': '2026-07-28',
             'mcp-method': 'tools/list',
         };
-        try {
-            const response = await nativeFetch(url, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: 1,
-                    method: 'tools/list',
-                    params: {
-                        _meta: {
-                            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-                            'io.modelcontextprotocol/clientCapabilities': {},
-                            padding: 'x'.repeat(128 * 1024),
-                        },
+        const response = await nativeFetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'tools/list',
+                params: {
+                    _meta: {
+                        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                        'io.modelcontextprotocol/clientCapabilities': {},
+                        padding: 'x'.repeat(128 * 1024),
                     },
-                }),
-            });
-            const body = await response.text();
-            expect(response.status, body).toBe(200);
-            expect(body).toContain('invoke_read_command');
-            const malformed = await nativeFetch(url, {
-                method: 'POST',
-                headers,
-                body: '{"secret": "caller-secret",',
-            });
-            expect(malformed.status).toBe(400);
-            expect(await malformed.text()).toBe('');
-            expect(malformed.headers.get('x-request-id')).toBeTruthy();
-            expect(upstream).toHaveBeenCalledOnce();
-        } finally {
-            await app.closeMcp();
-        }
+                },
+            }),
+        });
+        const body = await response.text();
+        expect(response.status, body).toBe(200);
+        expect(body).toContain('invoke_read_command');
+        const malformed = await nativeFetch(url, {
+            method: 'POST',
+            headers,
+            body: '{"secret": "caller-secret",',
+        });
+        expect(malformed.status).toBe(400);
+        expect(await malformed.text()).toBe('');
+        expect(malformed.headers.get('x-request-id')).toBeTruthy();
+        expect(upstream).toHaveBeenCalledOnce();
     });
 
     it('rejects cloud mode before fetching a schema or credentials', async () => {
