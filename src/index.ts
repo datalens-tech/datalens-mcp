@@ -4,6 +4,7 @@ import path from 'path';
 
 import dotenv from 'dotenv';
 
+import {MCP_TRANSPORT} from './components/config';
 import {startHttp} from './http';
 import {startStdio} from './stdio';
 
@@ -14,11 +15,11 @@ if (process.env.NODE_ENV === 'development') {
 const main = async () => {
     console.error('Starting DataLens MCP server...');
 
-    const transport = process.env.MCP_TRANSPORT ?? 'stdio';
+    const transport = process.env.MCP_TRANSPORT ?? MCP_TRANSPORT.STDIO;
 
-    if (transport === 'http') {
+    if (transport === MCP_TRANSPORT.HTTP) {
         await startHttp();
-    } else if (transport === 'stdio') {
+    } else if (transport === MCP_TRANSPORT.STDIO) {
         startStdio();
     } else {
         throw new Error('MCP_TRANSPORT must be stdio or http');

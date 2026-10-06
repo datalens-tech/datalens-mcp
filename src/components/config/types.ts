@@ -1,5 +1,7 @@
+import type {INSTALLATION} from './constants';
+
 /** DataLens installation type; cloud is the default. */
-export type Installation = 'cloud' | 'internal';
+export type Installation = (typeof INSTALLATION)[keyof typeof INSTALLATION];
 
 export type AppConfig = {
     /** Base URL of the DataLens public API */

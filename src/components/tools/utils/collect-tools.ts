@@ -1,3 +1,4 @@
+import {CONTENT_TYPE, HTTP_HEADER} from '../../../constants/http';
 import {
     MAX_API_RESPONSE_BYTES,
     readResponseText,
@@ -6,7 +7,7 @@ import {
 } from '../../../utils';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
-import {bundleRefs, isMcpScope} from '../../openapi';
+import {OPENAPI_EXTENSION, bundleRefs, isMcpScope} from '../../openapi';
 import {MAX_BUNDLED_SCHEMA_NODES} from '../../openapi/utils/bundle-refs';
 import type {CollectedTool} from '../types';
 
@@ -24,11 +25,11 @@ const toolNameFromPath = (path: string): string => path.split('/').filter(Boolea
 // header is passed explicitly for each invocation.
 const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
-        'content-type': 'application/json',
-        'x-dl-api-version': config.apiVersion,
+        [HTTP_HEADER.CONTENT_TYPE]: CONTENT_TYPE.JSON,
+        [HTTP_HEADER.DATALENS_API_VERSION]: config.apiVersion,
     };
     if (config.orgId) {
-        headers['x-dl-org-id'] = config.orgId;
+        headers[HTTP_HEADER.DATALENS_ORG_ID] = config.orgId;
     }
     return headers;
 };
@@ -59,7 +60,9 @@ const buildInvokeFn =
     ): CollectedTool['invoke'] =>
     async (args, authHeader) => {
         validateHttpsUrl(requestUrl, 'API request URL');
-        const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
+        const headers = authHeader
+            ? {...baseHeaders, [HTTP_HEADER.AUTHORIZATION]: authHeader}
+            : baseHeaders;
 
         return withRequestTimeout('DataLens API request', async (signal) => {
             const res = await fetch(requestUrl, {
@@ -93,7 +96,7 @@ const buildTool = (
     schemaBudget: {remainingNodes: number},
 ): CollectedTool => {
     const name = toolNameFromPath(path);
-    const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+    const bodySchema = operation.requestBody?.content?.[CONTENT_TYPE.JSON]?.schema;
     const rawInputSchema = bodySchema
         ? bundleRefs(bodySchema, components?.schemas, schemaBudget)
         : EMPTY_OBJECT_SCHEMA;
@@ -115,10 +118,10 @@ export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedToo
 
     return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
         const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
-        if (!operation || operation['x-mcp-disabled']) {
+        if (!operation || operation[OPENAPI_EXTENSION.MCP_DISABLED]) {
             return [];
         }
-        const scope = operation['x-mcp-scope'];
+        const scope = operation[OPENAPI_EXTENSION.MCP_SCOPE];
         if (!isMcpScope(scope)) {
             return [];
         }

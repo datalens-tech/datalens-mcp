@@ -1,3 +1,6 @@
+import type {CONTENT_TYPE} from '../../../constants/http';
+import type {MCP_SCOPE, OPENAPI_EXTENSION} from '../constants';
+
 export type JsonSchema = {
     $ref?: string;
     type?: string;
@@ -6,18 +9,18 @@ export type JsonSchema = {
     [key: string]: unknown;
 };
 
-export type McpScope = 'read' | 'write' | 'privileged';
+export type McpScope = (typeof MCP_SCOPE)[keyof typeof MCP_SCOPE];
 
 export type OpenAPIOperation = {
     operationId?: string;
     summary?: string;
     description?: string;
     deprecated?: boolean;
-    'x-mcp-disabled'?: boolean;
-    'x-mcp-scope'?: McpScope;
+    [OPENAPI_EXTENSION.MCP_DISABLED]?: boolean;
+    [OPENAPI_EXTENSION.MCP_SCOPE]?: McpScope;
     requestBody?: {
         content?: {
-            'application/json'?: {
+            [CONTENT_TYPE.JSON]?: {
                 schema?: JsonSchema;
             };
         };

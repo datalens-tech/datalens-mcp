@@ -1,4 +1,5 @@
-import {loadConfigCommon} from '../config';
+import {AUTH_SCHEME} from '../auth';
+import {INSTALLATION, loadConfigCommon} from '../config';
 import type {AppConfig, Installation} from '../config';
 
 /** Settings for obtaining an IAM token via the Yandex Cloud `yc` CLI */
@@ -22,8 +23,8 @@ const parseBool = (raw: string | undefined): boolean =>
 const resolveAuthHeader = (installation: Installation): string | undefined => {
     const oauthToken = process.env.DATALENS_OAUTH_TOKEN?.trim();
 
-    if (installation === 'internal' && oauthToken) {
-        return `OAuth ${oauthToken}`;
+    if (installation === INSTALLATION.INTERNAL && oauthToken) {
+        return `${AUTH_SCHEME.OAUTH} ${oauthToken}`;
     }
 
     return process.env.DATALENS_API_AUTH_HEADER;
@@ -37,7 +38,7 @@ const getYcIamConfig = (): YcIamConfig => ({
 export const loadStdioConfig = (): StdioConfig => {
     const config = loadConfigCommon();
     const {installation} = config;
-    const isCloud = installation === 'cloud';
+    const isCloud = installation === INSTALLATION.CLOUD;
     let ycIam: YcIamConfig | undefined;
 
     if (isCloud && !parseBool(process.env.DATALENS_YC_STATIC_AUTH)) {

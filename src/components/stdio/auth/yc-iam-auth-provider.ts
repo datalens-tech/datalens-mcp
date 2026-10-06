@@ -2,6 +2,7 @@ import {execFile} from 'child_process';
 import {promisify} from 'util';
 
 import type {AuthProvider} from '../../auth';
+import {AUTH_SCHEME} from '../../auth';
 import type {YcIamConfig} from '../config';
 
 const execFileAsync = promisify(execFile);
@@ -107,6 +108,6 @@ export const createYcIamAuthProvider = async (config: YcIamConfig): Promise<Auth
     };
 
     return {
-        getAuthHeader: async () => `Bearer ${await getToken()}`,
+        getAuthHeader: async () => `${AUTH_SCHEME.BEARER} ${await getToken()}`,
     };
 };

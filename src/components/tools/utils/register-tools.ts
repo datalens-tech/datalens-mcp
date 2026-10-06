@@ -3,6 +3,7 @@ import type {Server, ServerContext} from '@modelcontextprotocol/server';
 import {truncateText} from '../../../utils';
 import type {AuthProvider} from '../../auth';
 import type {McpScope} from '../../openapi';
+import {MCP_SCOPE} from '../../openapi';
 import {INVOKE_TOOL_BY_SCOPE, TOOL_DEFS, TOOL_NAME} from '../constants';
 import type {CollectedTool} from '../types';
 
@@ -135,7 +136,7 @@ export const registerTools = ({
                         args,
                         toolsByName,
                         maxResponseChars,
-                        'read',
+                        MCP_SCOPE.READ,
                         ctx,
                         authProvider,
                     ),
@@ -146,7 +147,7 @@ export const registerTools = ({
                         args,
                         toolsByName,
                         maxResponseChars,
-                        'write',
+                        MCP_SCOPE.WRITE,
                         ctx,
                         authProvider,
                     ),
@@ -157,7 +158,7 @@ export const registerTools = ({
                         args,
                         toolsByName,
                         maxResponseChars,
-                        'privileged',
+                        MCP_SCOPE.PRIVILEGED,
                         ctx,
                         authProvider,
                     ),

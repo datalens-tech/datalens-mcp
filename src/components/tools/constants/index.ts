@@ -1,6 +1,7 @@
 import type {Tool} from '@modelcontextprotocol/server';
 
 import type {McpScope} from '../../openapi';
+import {MCP_SCOPE} from '../../openapi';
 
 export const TOOL_NAME = {
     LIST_COMMANDS: 'list_commands',
@@ -11,9 +12,9 @@ export const TOOL_NAME = {
 } as const;
 
 export const INVOKE_TOOL_BY_SCOPE = {
-    read: TOOL_NAME.INVOKE_READ_COMMAND,
-    write: TOOL_NAME.INVOKE_WRITE_COMMAND,
-    privileged: TOOL_NAME.INVOKE_PRIVILEGED_COMMAND,
+    [MCP_SCOPE.READ]: TOOL_NAME.INVOKE_READ_COMMAND,
+    [MCP_SCOPE.WRITE]: TOOL_NAME.INVOKE_WRITE_COMMAND,
+    [MCP_SCOPE.PRIVILEGED]: TOOL_NAME.INVOKE_PRIVILEGED_COMMAND,
 } satisfies Record<McpScope, string>;
 
 const INVOKE_INPUT_SCHEMA = {

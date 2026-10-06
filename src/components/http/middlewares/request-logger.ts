@@ -2,10 +2,12 @@ import {randomUUID} from 'crypto';
 
 import type {RequestHandler} from 'express';
 
+import {HTTP_HEADER} from '../../../constants/http';
+
 export const requestLogger: RequestHandler = (req, res, next) => {
     const startedAt = performance.now();
     const requestId = randomUUID();
-    res.setHeader('x-request-id', requestId);
+    res.setHeader(HTTP_HEADER.REQUEST_ID, requestId);
 
     const message = `${req.method} ${req.path} requestId=${requestId}`;
 

@@ -1,10 +1,7 @@
+import {MCP_SCOPE} from '../constants';
 import type {McpScope} from '../types';
 
-const MCP_SCOPES = {
-    read: true,
-    write: true,
-    privileged: true,
-} satisfies Record<McpScope, true>;
+const MCP_SCOPES: ReadonlySet<string> = new Set(Object.values(MCP_SCOPE));
 
 export const isMcpScope = (value: unknown): value is McpScope =>
-    typeof value === 'string' && Object.prototype.hasOwnProperty.call(MCP_SCOPES, value);
+    typeof value === 'string' && MCP_SCOPES.has(value);

@@ -1,6 +1,6 @@
 import {once} from 'events';
 
-import {createHttpApp, loadHttpConfig} from './components/http';
+import {HTTP_PATH, createHttpApp, loadHttpConfig} from './components/http';
 
 export const startHttp = async () => {
     const config = loadHttpConfig();
@@ -10,6 +10,6 @@ export const startHttp = async () => {
 
     await once(server, 'listening');
 
-    console.error(`DataLens MCP server running on HTTP on port ${config.port} at /mcp`);
+    console.error(`DataLens MCP server running on HTTP on port ${config.port} at ${HTTP_PATH.MCP}`);
     return server;
 };
