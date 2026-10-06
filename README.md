@@ -209,9 +209,6 @@ schema diagnostics include the URL origin and path, without query or fragment.
 
 ## Development
 
-See [Releasing the npm package](docs/releasing.md) for release preparation,
-trusted publisher setup, and recovery after a failed publication.
-
 ```bash
 npm run lint        # prettier + eslint
 npm run typecheck   # tsc --noEmit
