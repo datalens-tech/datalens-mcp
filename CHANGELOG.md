@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+### Changed
+
+- Migrate to MCP TypeScript SDK v2 and `serveStdio`, supporting both modern and
+  legacy clients. Require Node.js 20 or newer.
+
 ## 0.2.0
 
 ### Changed
