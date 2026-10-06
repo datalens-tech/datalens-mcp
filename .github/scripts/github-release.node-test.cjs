@@ -71,6 +71,57 @@ test('existing stable release is preserved on retry', async () => {
     assert.deepEqual(input.created, []);
 });
 
+for (const persistRelease of [true, false]) {
+    test(
+        persistRelease
+            ? 'retry preserves a release created before its response was lost'
+            : 'retry completes a release after tag creation persisted before failure',
+        async () => {
+            const input = fixture();
+            const state = {ref: undefined, existing: undefined, attempts: 0};
+            input.github.rest.git.getRef = async () => {
+                if (!state.ref) throw Object.assign(new Error('Not found'), {status: 404});
+                return {data: {object: state.ref}};
+            };
+            input.github.rest.repos.getReleaseByTag = async () => {
+                if (!state.existing) throw Object.assign(new Error('Not found'), {status: 404});
+                return {data: state.existing};
+            };
+            input.github.rest.repos.createRelease = async (request) => {
+                state.attempts++;
+                input.created.push(request);
+                state.ref = {type: 'commit', sha: request.target_commitish};
+                if (persistRelease || state.attempts > 1) {
+                    state.existing = {
+                        draft: false,
+                        prerelease: false,
+                        html_url: 'https://example.com/release',
+                    };
+                }
+                if (state.attempts === 1) throw new Error('Release response lost');
+                return {data: state.existing};
+            };
+
+            await assert.rejects(release({...input, create: true}), /Release response lost/);
+            const persistedRef = state.ref;
+            const persistedRelease = state.existing;
+            await release(input);
+            await release({...input, create: true});
+            await release({...input, create: true});
+
+            assert.equal(state.ref.sha, input.context.sha);
+            assert.equal(state.attempts, persistRelease ? 1 : 2);
+            if (persistRelease) {
+                assert.equal(state.ref, persistedRef);
+                assert.equal(state.existing, persistedRelease);
+            }
+            assert.ok(
+                input.created.every((request) => request.target_commitish === input.context.sha),
+            );
+        },
+    );
+}
+
 test('conflicting tag blocks publishing and release creation', async () => {
     const input = fixture({ref: {type: 'commit', sha: 'different-commit'}});
     await assert.rejects(

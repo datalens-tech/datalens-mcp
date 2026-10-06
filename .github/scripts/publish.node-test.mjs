@@ -132,6 +132,41 @@ test('accepts an already published version only when integrity matches', async (
     );
 });
 
+test('retry skips publication after npm accepted the package before a failed step', async () => {
+    const metadata = {name, versions: {}, 'dist-tags': {latest: '1.2.2'}};
+    const fetchRegistry = async () => ({status: 200, json: async () => metadata});
+    let publications = 0;
+    const publish = async () => {
+        if (await checkRegistry(version, integrity, fetchRegistry)) return;
+        publications++;
+        metadata.versions[version] = {dist: {integrity}};
+        metadata['dist-tags'].latest = version;
+        throw new Error('Publish response lost');
+    };
+
+    await assert.rejects(publish(), /Publish response lost/);
+    metadata['dist-tags'].latest = '1.2.4';
+    assert.equal(await checkRegistry(version, integrity, fetchRegistry, true), true);
+    await publish();
+    assert.equal(await checkRegistry(version, integrity, fetchRegistry), true);
+    assert.equal(publications, 1);
+    assert.equal(metadata['dist-tags'].latest, '1.2.4');
+});
+
+test('retry confirms publication after registry visibility recovers', async () => {
+    const metadata = {name, versions: {}, 'dist-tags': {latest: '1.2.2'}};
+    const fetchRegistry = async () => ({status: 200, json: async () => metadata});
+    assert.equal(await checkRegistry(version, integrity, fetchRegistry), false);
+    await assert.rejects(
+        checkRegistry(version, integrity, fetchRegistry, true),
+        /not yet available/,
+    );
+    metadata.versions[version] = {dist: {integrity}};
+    metadata['dist-tags'].latest = version;
+    assert.equal(await checkRegistry(version, integrity, fetchRegistry, true), true);
+    assert.equal(await checkRegistry(version, integrity, fetchRegistry), true);
+});
+
 test('fails on registry authentication, server, parsing, and network errors', async () => {
     for (const status of [401, 403, 429, 500]) {
         await assert.rejects(
