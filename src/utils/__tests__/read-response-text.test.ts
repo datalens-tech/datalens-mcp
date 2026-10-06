@@ -1,9 +1,9 @@
 import {createServer} from 'http';
-import type {AddressInfo} from 'net';
 import {gzipSync} from 'zlib';
 
 import {describe, expect, it, vi} from 'vitest';
 
+import {listenHttp} from '../../__tests__/helpers/http';
 import {readResponseText} from '../read-response-text';
 
 describe('readResponseText', () => {
@@ -44,17 +44,10 @@ describe('readResponseText', () => {
             });
             response.end(compressed);
         });
-        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-        try {
-            const response = await fetch(
-                `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
-            );
-            await expect(readResponseText(response, 1024)).rejects.toThrow('maximum allowed size');
-        } finally {
-            server.closeAllConnections();
-            await new Promise<void>((resolve, reject) =>
-                server.close((error) => (error ? reject(error) : resolve())),
-            );
-        }
+        const url = await listenHttp(server);
+
+        const response = await fetch(url);
+
+        await expect(readResponseText(response, 1024)).rejects.toThrow('maximum allowed size');
     });
 });

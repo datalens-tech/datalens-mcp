@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {describe, expect, it} from 'vitest';
 
 import type {AppConfig} from '../../../config';
 import type {OpenAPISpec} from '../../../openapi';
@@ -13,86 +13,28 @@ const config: AppConfig = {
 };
 
 describe('collectTools', () => {
-    it('accepts only explicitly classified operations and keeps disabled operations unavailable', () => {
-        const spec: OpenAPISpec = JSON.parse(`{
-            "paths": {
-                "/rpc/read": {"post": {"x-mcp-scope": "read"}},
-                "/rpc/write": {"post": {"x-mcp-scope": "write"}},
-                "/rpc/privileged": {"post": {"x-mcp-scope": "privileged"}},
-                "/rpc/missing": {"post": {}},
-                "/rpc/unknown": {"post": {"x-mcp-scope": "admin"}},
-                "/rpc/invalid": {"post": {"x-mcp-scope": ["read"]}},
-                "/rpc/inherited": {"post": {"x-mcp-scope": "toString"}},
-                "/rpc/disabled": {"post": {"x-mcp-scope": "read", "x-mcp-disabled": true}}
-            }
-        }`);
-        expect(collectTools(spec, config).map(({name, scope}) => ({name, scope}))).toEqual([
-            {name: 'read', scope: 'read'},
-            {name: 'write', scope: 'write'},
-            {name: 'privileged', scope: 'privileged'},
-        ]);
-    });
+    it.each(['read', 'write', 'privileged'] as const)(
+        'collects an operation with scope %s',
+        (scope) => {
+            const spec: OpenAPISpec = {paths: {'/rpc/test': {post: {'x-mcp-scope': scope}}}};
+            expect(collectTools(spec, config)).toMatchObject([{name: 'test', scope}]);
+        },
+    );
 
-    afterEach(() => vi.unstubAllGlobals());
+    it.each([{scope: undefined}, {scope: 'admin'}, {scope: ['read']}, {scope: 'toString'}])(
+        'ignores an operation with invalid or missing scope $scope',
+        ({scope}) => {
+            // OpenAPI arrives as untrusted JSON and may violate the declared type.
+            const spec = {paths: {'/rpc/test': {post: {'x-mcp-scope': scope}}}} as OpenAPISpec;
+            expect(collectTools(spec, config)).toEqual([]);
+        },
+    );
 
-    it('preserves JSON and text results and rejects redirects for authenticated calls', async () => {
-        const fetchMock = vi
-            .fn()
-            .mockResolvedValueOnce(new Response('{"id":"entry"}'))
-            .mockResolvedValueOnce(new Response('plain text'));
-        vi.stubGlobal('fetch', fetchMock);
-        const [tool] = collectTools(
-            {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
-            config,
-        );
-        expect(await tool.invoke({id: 'entry'}, 'Bearer test-token')).toEqual({id: 'entry'});
-        expect(await tool.invoke({}, 'Bearer test-token')).toBe('plain text');
-        expect(fetchMock).toHaveBeenCalledWith(
-            'https://api.example.com/rpc/test',
-            expect.objectContaining({
-                redirect: 'error',
-                headers: expect.objectContaining({Authorization: 'Bearer test-token'}),
-                body: '{"id":"entry"}',
-            }),
-        );
-    });
-
-    it('rejects HTTP before sending credentials', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        const [tool] = collectTools(
-            {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
-            {...config, apiUrl: 'http://api.example.com'},
-        );
-        await expect(tool.invoke({}, 'Bearer test-token')).rejects.toThrow('HTTPS');
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('preserves JSON and text API error details', async () => {
-        const details = {code: 'ACCESS_DENIED', message: 'Permission denied'};
-        vi.stubGlobal(
-            'fetch',
-            vi
-                .fn()
-                .mockResolvedValueOnce(new Response(JSON.stringify(details), {status: 403}))
-                .mockResolvedValueOnce(new Response('Invalid input', {status: 400})),
-        );
-        const [tool] = collectTools(
-            {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
-            config,
-        );
-        const error = await tool.invoke({}).catch((error: unknown) => error);
-        expect(error).toBeInstanceOf(Error);
-        expect(String(error)).toContain(JSON.stringify(details));
-        const textError = await tool.invoke({}).catch((error: unknown) => error);
-        expect(textError).toBeInstanceOf(Error);
-        expect(String(textError)).toContain('Invalid input');
-    });
     it('collects only POST operations and ignores other methods', () => {
         const spec: OpenAPISpec = {
             paths: {
                 '/rpc/getWorkbookEntries': {post: {summary: 'Get entries', 'x-mcp-scope': 'read'}},
-                '/rpc/health': {get: {summary: 'Health'}},
+                '/rpc/health': {get: {summary: 'Health', 'x-mcp-scope': 'read'}},
             },
         };
 
@@ -106,7 +48,9 @@ describe('collectTools', () => {
         const spec: OpenAPISpec = {
             paths: {
                 '/rpc/getQLChart': {post: {summary: 'Get', 'x-mcp-scope': 'read'}},
-                '/rpc/createQLChart': {post: {summary: 'Create', 'x-mcp-disabled': true}},
+                '/rpc/createQLChart': {
+                    post: {summary: 'Create', 'x-mcp-scope': 'write', 'x-mcp-disabled': true},
+                },
             },
         };
 

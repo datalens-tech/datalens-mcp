@@ -1,248 +1,165 @@
-import {once} from 'events';
-import {request} from 'http';
-import type {Server} from 'http';
-import type {AddressInfo} from 'net';
+import {describe, expect, it, vi} from 'vitest';
 
-import {Client, StreamableHTTPClientTransport} from '@modelcontextprotocol/client';
-import {afterEach, describe, expect, it, vi} from 'vitest';
-
-import type {StdioConfig} from '../../stdio/config';
-import type {HttpConfig} from '../config';
+import {readToolJson} from '../../../__tests__/helpers/mcp';
 import {createHttpApp} from '../create-http-app';
 
-const nativeFetch = globalThis.fetch;
-const config: StdioConfig = {
-    installation: 'internal',
-    apiUrl: 'https://api.example.com',
-    schemaUrl: 'https://api.example.com/json/',
-    apiVersion: 'latest',
-    maxResponseChars: 1000,
-    // Even explicitly configured server credentials must never be used over HTTP.
-    authHeader: 'OAuth server-secret',
-    ycIam: {bin: 'must-not-be-executed'},
-};
-const httpConfig: HttpConfig = {
-    ...config,
-    port: 3000,
-};
-const spec = {
-    paths: Object.fromEntries(
-        ['read', 'write', 'privileged'].map((scope) => [
-            `/rpc/${scope}`,
-            {post: {'x-mcp-scope': scope}},
-        ]),
-    ),
-};
+import {httpConfig, nativeFetch, startTestServer} from './http-test-server';
 
-const servers: Server[] = [];
-const listen = async (app: Awaited<ReturnType<typeof createHttpApp>>) => {
-    const server = app.listen(0, '127.0.0.1');
-    servers.push(server);
-    await once(server, 'listening');
-    return new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`);
-};
+const invokeRead = {name: 'invoke_read_command', arguments: {command_name: 'read'}};
+const listToolsBody = JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'});
 
-const makeClient = (url: URL, era: 'legacy' | 'modern', authorization?: string) => {
-    const client = new Client(
-        {name: 'http-test', version: '1'},
-        {versionNegotiation: {mode: era === 'modern' ? {pin: '2026-07-28'} : 'legacy'}},
-    );
-    const transport = new StreamableHTTPClientTransport(url, {
-        fetch: nativeFetch,
-        requestInit: {headers: authorization ? {Authorization: authorization} : {}},
-    });
-    return {client, transport};
-};
+describe.each(['legacy', 'modern'] as const)('HTTP MCP (%s)', (era) => {
+    it('serves the catalog anonymously and fetches the schema only once', async () => {
+        const {connect, api, fetchMock} = await startTestServer();
+        const first = await connect(era);
+        const second = await connect(era);
 
-describe('HTTP server', () => {
-    afterEach(async () => {
-        vi.unstubAllGlobals();
-        await Promise.all(
-            servers.splice(0).map(
-                (server) =>
-                    new Promise<void>((resolve) => {
-                        server.close(() => resolve());
-                        server.closeAllConnections();
-                    }),
-            ),
-        );
+        expect(first.getProtocolEra()).toBe(era);
+        expect((await first.listTools()).tools).toHaveLength(5);
+        const listed = await first.callTool({name: 'list_commands'});
+        const described = await second.callTool({
+            name: 'describe_commands',
+            arguments: {command_names: ['read']},
+        });
+
+        expect(listed.isError).not.toBe(true);
+        expect(described.isError).not.toBe(true);
+        expect(readToolJson(listed)).toHaveLength(3);
+        expect(readToolJson(described)[0]).toMatchObject({command_name: 'read', scope: 'read'});
+        expect(api).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledExactlyOnceWith(httpConfig.schemaUrl, expect.any(Object));
     });
 
-    it.each(['legacy', 'modern'] as const)(
-        'isolates credentials, leaves auth to DataLens and loads the catalog once (%s)',
-        async (era) => {
-            const apiHeaders: (string | null)[] = [];
-            let releaseFirst: (() => void) | undefined;
-            const firstArrived = new Promise<void>((resolve) => {
-                releaseFirst = resolve;
+    it.each(['read', 'write', 'privileged'])(
+        'forwards caller credentials for a %s command',
+        async (scope) => {
+            const {connect, api} = await startTestServer();
+            const client = await connect(era, 'OAuth alice');
+
+            const result = await client.callTool({
+                name: `invoke_${scope}_command`,
+                arguments: {command_name: scope},
             });
-            let releaseSecond: (() => void) | undefined;
-            const secondArrived = new Promise<void>((resolve) => {
-                releaseSecond = resolve;
-            });
-            const upstream = vi.fn(async (url: string, options?: RequestInit) => {
-                if (url === config.schemaUrl) return Response.json(spec);
-                // Unexpected npm checks also fail this assertion.
-                expect(url).toMatch(/^https:\/\/api\.example\.com\/rpc\//);
-                const auth = new Headers(options?.headers).get('authorization');
-                apiHeaders.push(auth);
-                if (!auth || auth === 'OAuth expired') {
-                    return Response.json({code: 'UNAUTHORIZED'}, {status: 401});
-                }
-                if (apiHeaders.length === 1) {
-                    releaseFirst?.();
-                    await secondArrived;
-                } else if (apiHeaders.length === 2) {
-                    await firstArrived;
-                    releaseSecond?.();
-                }
-                return Response.json({user: auth === 'OAuth alice' ? 'alice' : 'bob'});
-            });
-            vi.stubGlobal('fetch', upstream);
-            const app = await createHttpApp(httpConfig);
-            const url = await listen(app);
-            const peers = [undefined, 'OAuth alice', 'OAuth bob', 'OAuth expired'].map((auth) =>
-                makeClient(url, era, auth),
-            );
-            try {
-                await Promise.all(peers.map(({client, transport}) => client.connect(transport)));
-                const [anonymous, alice, bob, expired] = peers.map(({client}) => client);
-                expect(alice.getProtocolEra()).toBe(era);
-                expect((await anonymous.listTools()).tools).toHaveLength(5);
-                for (const name of ['list_commands', 'describe_commands']) {
-                    const result = await anonymous.callTool({
-                        name,
-                        arguments: {command_names: ['read']},
-                    });
-                    expect(result.isError).not.toBe(true);
-                    expect(result.content).toHaveLength(1);
-                }
-                expect(apiHeaders).toHaveLength(0);
-                for (const scope of ['read', 'write', 'privileged']) {
-                    const results = await Promise.all(
-                        [alice, bob].map((client) =>
-                            client.callTool({
-                                name: `invoke_${scope}_command`,
-                                arguments: {command_name: scope},
-                            }),
-                        ),
-                    );
-                    results.forEach((result, i) => {
-                        expect(result.isError).not.toBe(true);
-                        expect(result.content).toHaveLength(1);
-                        const block = result.content[0];
-                        if (block.type !== 'text') throw new Error('Expected text');
-                        expect(JSON.parse(JSON.parse(block.text).data)).toEqual({
-                            user: i === 0 ? 'alice' : 'bob',
-                        });
-                    });
-                }
-                for (const client of [anonymous, expired]) {
-                    const result = await client.callTool({
-                        name: 'invoke_read_command',
-                        arguments: {command_name: 'read'},
-                    });
-                    expect(result.isError).toBe(true);
-                    expect(JSON.stringify(result.content)).toContain('401');
-                }
-                expect(apiHeaders).toEqual([
-                    'OAuth alice',
-                    'OAuth bob',
-                    'OAuth alice',
-                    'OAuth bob',
-                    'OAuth alice',
-                    'OAuth bob',
-                    null,
-                    'OAuth expired',
-                ]);
-                const calls = upstream.mock.calls.length;
-                const denied = await alice.callTool({
-                    name: 'invoke_read_command',
-                    arguments: {command_name: 'privileged'},
-                });
-                expect(denied.isError).toBe(true);
-                expect(upstream).toHaveBeenCalledTimes(calls);
-                expect(
-                    upstream.mock.calls.filter(([target]) => target === config.schemaUrl),
-                ).toHaveLength(1);
-                expect(
-                    upstream.mock.calls.every(([target]) => target.startsWith(config.apiUrl)),
-                ).toBe(true);
-            } finally {
-                await Promise.all(peers.map(({client}) => client.close()));
-            }
+
+            expect(result.isError).not.toBe(true);
+            expect(api).toHaveBeenCalledOnce();
+            const [url, options] = api.mock.calls[0];
+            expect(url).toBe(`${httpConfig.apiUrl}/rpc/${scope}`);
+            expect(new Headers(options?.headers).get('authorization')).toBe('OAuth alice');
         },
     );
 
-    it('accepts arbitrary hosts and origins, serves health checks and enforces routing and body limits', async () => {
-        const upstream = vi.fn(async () => Response.json(spec));
-        vi.stubGlobal('fetch', upstream);
-        const app = await createHttpApp(httpConfig);
-        const url = await listen(app);
+    it('keeps credentials isolated while two requests overlap', async () => {
+        const {connect, api} = await startTestServer();
+        const alice = await connect(era, 'OAuth alice');
+        const bob = await connect(era, 'OAuth bob');
+        let aliceArrived!: () => void;
+        const started = new Promise<void>((resolve) => {
+            aliceArrived = resolve;
+        });
+        let releaseAlice!: () => void;
+        const blocked = new Promise<void>((resolve) => {
+            releaseAlice = resolve;
+        });
+        api.mockImplementation(async (_url, options) => {
+            const authorization = new Headers(options?.headers).get('authorization');
+            if (authorization === 'OAuth alice') {
+                aliceArrived();
+                await blocked;
+            }
+            return Response.json({authorization});
+        });
+
+        const aliceResult = alice.callTool(invokeRead);
+        try {
+            await started;
+            const bobResult = await bob.callTool(invokeRead);
+            expect(JSON.parse(readToolJson(bobResult).data)).toEqual({authorization: 'OAuth bob'});
+        } finally {
+            releaseAlice();
+        }
+        expect(JSON.parse(readToolJson(await aliceResult).data)).toEqual({
+            authorization: 'OAuth alice',
+        });
+        expect(api).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([undefined, 'OAuth expired'])(
+        'leaves authentication failures to DataLens (%s)',
+        async (authorization) => {
+            const {connect, api} = await startTestServer();
+            api.mockImplementation(async () =>
+                Response.json({code: 'UNAUTHORIZED'}, {status: 401}),
+            );
+            const client = await connect(era, authorization);
+
+            const result = await client.callTool(invokeRead);
+
+            expect(result.isError).toBe(true);
+            expect(JSON.stringify(result.content)).toContain('401');
+            expect(api).toHaveBeenCalledOnce();
+            expect(new Headers(api.mock.calls[0][1]?.headers).get('authorization')).toBe(
+                authorization ?? null,
+            );
+        },
+    );
+
+    it('rejects a scope mismatch without calling DataLens', async () => {
+        const {connect, api} = await startTestServer();
+        const client = await connect(era, 'OAuth alice');
+
+        const result = await client.callTool({
+            name: 'invoke_read_command',
+            arguments: {command_name: 'privileged'},
+        });
+
+        expect(result.isError).toBe(true);
+        expect(api).not.toHaveBeenCalled();
+    });
+});
+
+describe('HTTP routing', () => {
+    it('serves the health check', async () => {
+        const {url} = await startTestServer();
         const response = await nativeFetch(new URL('/ping', url));
         expect(response.status).toBe(200);
         expect(await response.text()).toBe('OK');
-        expect((await nativeFetch(new URL('/other', url))).status).toBe(404);
-        expect((await nativeFetch(new URL('/ping', url), {method: 'POST'})).status).toBe(404);
-        for (const headers of [{Host: 'mcp.example.com'}, {Origin: 'https://client.example.com'}]) {
-            const status = await new Promise<number | undefined>((resolve, reject) => {
-                const req = request(
-                    url,
-                    {
-                        method: 'POST',
-                        headers: {
-                            ...headers,
-                            'content-type': 'application/json',
-                            accept: 'application/json, text/event-stream',
-                        },
-                    },
-                    (response) => {
-                        response.resume();
-                        response.on('end', () => resolve(response.statusCode));
-                    },
-                );
-                req.on('error', reject);
-                req.end(JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'}));
-            });
-            expect(status).toBe(200);
-        }
-        const oversized = await new Promise<number | undefined>((resolve, reject) => {
-            const req = request(
-                url,
-                {
-                    method: 'POST',
-                    headers: {
-                        'content-type': 'application/json',
-                        'content-length': 4 * 1024 * 1024 + 1,
-                    },
-                },
-                (response) => {
-                    response.resume();
-                    response.on('end', () => resolve(response.statusCode));
-                },
-            );
-            req.on('error', reject);
-            req.end('x'.repeat(4 * 1024 * 1024 + 1));
-        });
-        expect(oversized).toBe(413);
-        expect(upstream).toHaveBeenCalledOnce();
     });
 
-    it('handles parsed bodies above 100 KiB and returns no caller data for malformed JSON', async () => {
-        const upstream = vi.fn(async () => Response.json(spec));
-        vi.stubGlobal('fetch', upstream);
-        const app = await createHttpApp(httpConfig);
-        const url = await listen(app);
-        const headers = {
-            'content-type': 'application/json',
-            accept: 'application/json, text/event-stream',
-            'mcp-protocol-version': '2026-07-28',
-            'mcp-method': 'tools/list',
-        };
-        const response = await nativeFetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
+    it.each([
+        {path: '/other', method: 'GET'},
+        {path: '/ping', method: 'POST'},
+    ])('returns 404 for $method $path', async ({path, method}) => {
+        const {url} = await startTestServer();
+        const response = await nativeFetch(new URL(path, url), {method});
+        expect(response.status).toBe(404);
+        await response.body?.cancel();
+    });
+
+    it.each([
+        ['Host', 'mcp.example.com'],
+        ['Origin', 'https://client.example.com'],
+    ])('accepts %s: %s', async (name, value) => {
+        const {post} = await startTestServer();
+        const response = await post(listToolsBody, {[name]: value});
+        expect(response.status).toBe(200);
+        await response.body?.cancel();
+    });
+});
+
+describe('HTTP request bodies', () => {
+    it('rejects bodies over 4 MiB', async () => {
+        const {post, api} = await startTestServer();
+        const response = await post('x'.repeat(4 * 1024 * 1024 + 1));
+        expect(response.status).toBe(413);
+        expect(api).not.toHaveBeenCalled();
+        await response.body?.cancel();
+    });
+
+    it('accepts parsed JSON above the default Express limit of 100 KiB', async () => {
+        const {post} = await startTestServer();
+        const response = await post(
+            JSON.stringify({
                 jsonrpc: '2.0',
                 id: 1,
                 method: 'tools/list',
@@ -254,27 +171,34 @@ describe('HTTP server', () => {
                     },
                 },
             }),
-        });
-        const body = await response.text();
-        expect(response.status, body).toBe(200);
-        expect(body).toContain('invoke_read_command');
-        const malformed = await nativeFetch(url, {
-            method: 'POST',
-            headers,
-            body: '{"secret": "caller-secret",',
-        });
-        expect(malformed.status).toBe(400);
-        expect(await malformed.text()).toBe('');
-        expect(malformed.headers.get('x-request-id')).toBeTruthy();
-        expect(upstream).toHaveBeenCalledOnce();
+            {'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list'},
+        );
+
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain('invoke_read_command');
     });
 
+    it('returns a request ID without echoing malformed JSON', async () => {
+        const {post, api} = await startTestServer();
+        const response = await post('{"secret": "caller-secret",');
+        expect(response.status).toBe(400);
+        expect(await response.text()).toBe('');
+        expect(response.headers.get('x-request-id')).toBeTruthy();
+        expect(api).not.toHaveBeenCalled();
+    });
+});
+
+describe('HTTP installation', () => {
     it('rejects cloud mode before fetching a schema or credentials', async () => {
-        const upstream = vi.fn();
-        vi.stubGlobal('fetch', upstream);
-        await expect(createHttpApp({...httpConfig, installation: 'cloud'})).rejects.toThrow(
-            'internal',
-        );
-        expect(upstream).not.toHaveBeenCalled();
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        try {
+            await expect(createHttpApp({...httpConfig, installation: 'cloud'})).rejects.toThrow(
+                'internal',
+            );
+            expect(fetchMock).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });

@@ -5,41 +5,45 @@ import {checkForUpdate} from '../check-for-update';
 describe('checkForUpdate', () => {
     afterEach(() => vi.unstubAllGlobals());
 
-    it('compares semantic versions and only reports a newer stable latest release', async () => {
-        for (const [current, latest, outdated] of [
-            ['0.9.0', '0.10.0', true],
-            ['1.0.0', '1.0.0', false],
-            ['2.0.0', '1.9.0', false],
-            ['2.0.0-preview.1', '2.0.0', true],
-            ['2.0.0-preview.1', '1.9.0', false],
-            ['1.0.0', '2.0.0-preview.1', false],
-            ['1.0.0', 'invalid', false],
-        ] as const) {
-            vi.stubGlobal(
-                'fetch',
-                vi.fn().mockResolvedValue(new Response(JSON.stringify({version: latest}))),
-            );
-            const notice = await checkForUpdate(current, new AbortController().signal);
-            if (outdated) {
-                expect(notice).toContain(latest);
-                expect(notice).toContain(current);
-            } else {
-                expect(notice).toBeUndefined();
-            }
-        }
+    it.each([
+        {current: '0.9.0', latest: '0.10.0'},
+        {current: '2.0.0-preview.1', latest: '2.0.0'},
+    ])('reports a newer stable release: $current → $latest', async ({current, latest}) => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({version: latest})));
+        const notice = await checkForUpdate(current, new AbortController().signal);
+        expect(notice).toContain(current);
+        expect(notice).toContain(latest);
     });
 
-    it('ignores network, HTTP and malformed metadata failures without exposing them', async () => {
-        const fetchMock = vi
-            .fn()
-            .mockRejectedValueOnce(new Error('private-error'))
-            .mockResolvedValueOnce(new Response('private-body', {status: 503}))
-            .mockResolvedValueOnce(new Response('not JSON'))
-            .mockResolvedValueOnce(new Response('{"version": 42}'));
-        vi.stubGlobal('fetch', fetchMock);
+    it.each([
+        {current: '1.0.0', latest: '1.0.0'},
+        {current: '2.0.0', latest: '1.9.0'},
+        {current: '2.0.0-preview.1', latest: '1.9.0'},
+        {current: '1.0.0', latest: '2.0.0-preview.1'},
+        {current: '1.0.0', latest: 'invalid'},
+    ])('ignores an ineligible release: $current → $latest', async ({current, latest}) => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({version: latest})));
+        expect(await checkForUpdate(current, new AbortController().signal)).toBeUndefined();
+    });
+
+    it.each([
+        {failure: 'network error', fetch: () => Promise.reject(new Error('private-error'))},
+        {failure: 'HTTP error', fetch: async () => new Response('private-body', {status: 503})},
+        {failure: 'malformed JSON', fetch: async () => new Response('not JSON')},
+        {failure: 'invalid version type', fetch: async () => Response.json({version: 42})},
+    ])('silently ignores $failure', async ({fetch}) => {
+        vi.stubGlobal('fetch', vi.fn(fetch));
+        expect(await checkForUpdate('1.0.0', new AbortController().signal)).toBeUndefined();
+    });
+
+    it('passes the abort signal and refuses redirects to the registry', async () => {
+        const fetch = vi.fn().mockResolvedValue(Response.json({version: '1.0.0'}));
+        vi.stubGlobal('fetch', fetch);
         const signal = new AbortController().signal;
-        for (let i = 0; i < 4; i++) expect(await checkForUpdate('1.0.0', signal)).toBeUndefined();
-        expect(fetchMock).toHaveBeenCalledWith(
+
+        await checkForUpdate('1.0.0', signal);
+
+        expect(fetch).toHaveBeenCalledExactlyOnceWith(
             'https://registry.npmjs.org/@datalens-tech%2Fmcp/latest',
             {signal, redirect: 'error'},
         );
@@ -47,19 +51,14 @@ describe('checkForUpdate', () => {
 
     it('cancels oversized metadata instead of parsing it', async () => {
         const cancel = vi.fn();
-        vi.stubGlobal(
-            'fetch',
-            vi.fn().mockResolvedValue(
-                new Response(
-                    new ReadableStream({
-                        start(controller) {
-                            controller.enqueue(new Uint8Array(64 * 1024 + 1));
-                        },
-                        cancel,
-                    }),
-                ),
-            ),
-        );
+        const body = new ReadableStream({
+            start(controller) {
+                controller.enqueue(new Uint8Array(64 * 1024 + 1));
+            },
+            cancel,
+        });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+
         expect(await checkForUpdate('1.0.0', new AbortController().signal)).toBeUndefined();
         expect(cancel).toHaveBeenCalledOnce();
     });

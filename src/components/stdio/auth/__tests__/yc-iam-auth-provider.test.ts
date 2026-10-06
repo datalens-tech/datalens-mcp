@@ -91,6 +91,7 @@ describe('createYcIamAuthProvider', () => {
     afterEach(() => {
         execFileMock.mockReset();
         vi.useRealTimers();
+        vi.restoreAllMocks();
     });
 
     it('fetches the token lazily on the first getAuthHeader call', async () => {
@@ -220,6 +221,5 @@ describe('createYcIamAuthProvider', () => {
         expect(errorSpy).toHaveBeenCalledOnce();
         expect(inspect(errorSpy.mock.calls)).not.toContain('secret-marker');
         expect(inspect(errorSpy.mock.calls)).not.toContain('t1.good');
-        errorSpy.mockRestore();
     });
 });
