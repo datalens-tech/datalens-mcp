@@ -2,19 +2,19 @@ import {Client, InMemoryTransport} from '@modelcontextprotocol/client';
 import {serveStdio} from '@modelcontextprotocol/server/stdio';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {createApp} from './app';
-import {getPackageVersion} from './utils';
+import {getPackageVersion} from '../../../utils';
+import {createStdioServer} from '../create-stdio-server';
 
-vi.mock('./components/config', () => ({loadConfig: () => ({maxResponseChars: 1000})}));
-vi.mock('./components/auth', () => ({
+vi.mock('../config', () => ({loadStdioConfig: () => ({maxResponseChars: 1000})}));
+vi.mock('../auth', () => ({
     createAuthProvider: async () => ({getAuthHeader: () => undefined}),
 }));
-vi.mock('./components/openapi', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('./components/openapi')>()),
+vi.mock('../../openapi', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../openapi')>()),
     fetchOpenAPISpec: async () => ({paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}}),
 }));
 
-describe('createApp update check', () => {
+describe('createStdioServer update check', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
         vi.useRealTimers();
@@ -31,7 +31,7 @@ describe('createApp update check', () => {
             });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const server = await createApp();
+        const server = await createStdioServer();
         const [, serverTransport] = InMemoryTransport.createLinkedPair();
         await server.connect(serverTransport);
         try {
@@ -63,7 +63,7 @@ describe('createApp update check', () => {
                     {versionNegotiation: {mode: era === 'modern' ? {pin: '2026-07-28'} : 'legacy'}},
                 );
                 const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-                const handle = serveStdio(createApp, {transport: serverTransport});
+                const handle = serveStdio(createStdioServer, {transport: serverTransport});
                 expect(fetchMock).not.toHaveBeenCalled();
                 await client.connect(clientTransport);
                 try {

@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server that exposes the **DataLens public API** to LLM agents.
 
-When a client connects it fetches the API's OpenAPI spec and turns every RPC endpoint into a
+It fetches the API's OpenAPI spec and turns every RPC endpoint into a
 callable command when the operation declares a supported `x-mcp-scope`. Instead
 of registering hundreds of individual MCP tools (which would flood the model's
 context), it exposes a small **gateway** of five tools:
@@ -87,7 +87,7 @@ When both variables are set, `DATALENS_OAUTH_TOKEN` takes precedence.
 
 ## Run
 
-Requires **Node.js 20 or newer**. The server uses MCP SDK v2 and speaks MCP over
+Requires **Node.js 20 or newer**. The server uses MCP SDK v2 over
 stdio, supporting both the 2026-07-28 protocol and older clients. Add it to your
 MCP client config in one of the ways below.
 

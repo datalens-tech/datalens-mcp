@@ -1,6 +1,8 @@
 import {spawn} from 'child_process';
 import {once} from 'events';
 import {mkdtemp, rm, writeFile} from 'fs/promises';
+import {createServer} from 'net';
+import type {AddressInfo} from 'net';
 import {tmpdir} from 'os';
 import path from 'path';
 import {createInterface} from 'readline';
@@ -43,12 +45,13 @@ describe('stdio CLI', () => {
             process.execPath,
             ['--require', 'ts-node/register/transpile-only', '--require', preload, 'src/index.ts'],
             {
-                cwd: path.resolve(__dirname, '..'),
+                cwd: path.resolve(__dirname, '../..'),
                 env: {
                     PATH: process.env.PATH,
                     NODE_ENV: 'test',
                     DATALENS_ORG_ID: 'test',
                     DATALENS_YC_STATIC_AUTH: '1',
+                    MCP_PORT: 'ignored-in-stdio',
                 },
                 stdio: ['pipe', 'pipe', 'pipe'],
             },
@@ -123,6 +126,72 @@ describe('stdio CLI', () => {
             expect(stderr).not.toContain('DataLens MCP error:');
         } finally {
             lines.close();
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+            await exited;
+        }
+    });
+});
+
+describe('HTTP CLI', () => {
+    it('starts with internal config, serves discovery without credentials and shuts down', async () => {
+        const reservation = createServer();
+        await new Promise<void>((resolve) => reservation.listen(0, '127.0.0.1', resolve));
+        const port = (reservation.address() as AddressInfo).port;
+        await new Promise<void>((resolve) => reservation.close(() => resolve()));
+        const child = spawn(
+            process.execPath,
+            ['--require', 'ts-node/register/transpile-only', '--require', preload, 'src/index.ts'],
+            {
+                cwd: path.resolve(__dirname, '../..'),
+                env: {
+                    PATH: process.env.PATH,
+                    NODE_ENV: 'test',
+                    MCP_TRANSPORT: 'http',
+                    MCP_PORT: String(port),
+                    DATALENS_INSTALLATION: 'internal',
+                    DATALENS_API_URL: 'https://api.example.com',
+                },
+                stdio: ['ignore', 'pipe', 'pipe'],
+                timeout: 8000,
+                killSignal: 'SIGKILL',
+            },
+        );
+        const exited = once(child, 'exit');
+        let stdout = '';
+        child.stdout.on('data', (chunk) => {
+            stdout += chunk;
+        });
+        const ready = new Promise<void>((resolve, reject) => {
+            let stderr = '';
+            child.stderr.on('data', (chunk) => {
+                stderr += chunk;
+                if (stderr.includes('DataLens MCP server running on HTTP')) resolve();
+            });
+            child.once('error', reject);
+            child.once('exit', () =>
+                reject(new Error(`HTTP server exited before readiness: ${stderr}`)),
+            );
+        });
+        try {
+            await ready;
+            const base = `http://127.0.0.1:${port}`;
+            expect((await fetch(`${base}/ping`)).status).toBe(200);
+            const response = await fetch(`${base}/mcp`, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    accept: 'application/json, text/event-stream',
+                },
+                body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list', params: {}}),
+            });
+            expect(response.status).toBe(200);
+            const body = await response.text();
+            expect(body).toContain('invoke_read_command');
+            child.kill('SIGTERM');
+            expect(await exited).toEqual([0, null]);
+            expect(stdout).toContain('START POST /mcp requestId=');
+            expect(stdout).toContain('FINISH POST /mcp requestId=');
+        } finally {
             if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
             await exited;
         }

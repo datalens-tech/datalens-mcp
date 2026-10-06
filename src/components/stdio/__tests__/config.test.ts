@@ -1,8 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
-import {loadConfig} from './utils';
+import {loadStdioConfig} from '../config';
 
-describe('loadConfig', () => {
+describe('loadStdioConfig', () => {
     const ENV_KEYS = [
         'DATALENS_API_URL',
         'DATALENS_API_AUTH_HEADER',
@@ -42,14 +42,14 @@ describe('loadConfig', () => {
             process.env.DATALENS_ORG_ID = 'org1';
             for (const value of ['http://api.example.com', 'https://user:secret@api.example.com']) {
                 process.env[key] = value;
-                expect(() => loadConfig()).toThrow(key);
+                expect(() => loadStdioConfig()).toThrow(key);
             }
         },
     );
 
     it('defaults the api url to the public cloud endpoint when DATALENS_API_URL is missing', () => {
         process.env.DATALENS_ORG_ID = 'org1';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.apiUrl).toBe('https://api.datalens.tech');
         expect(config.schemaUrl).toBe('https://api.datalens.tech/json/');
@@ -57,19 +57,19 @@ describe('loadConfig', () => {
 
     it('throws when DATALENS_API_URL is missing on the internal installation', () => {
         process.env.DATALENS_INSTALLATION = 'internal';
-        expect(() => loadConfig()).toThrow('DATALENS_API_URL');
+        expect(() => loadStdioConfig()).toThrow('DATALENS_API_URL');
     });
 
     it('strips a trailing slash from the api url', () => {
         process.env.DATALENS_API_URL = 'https://api.example.com/';
         process.env.DATALENS_ORG_ID = 'org1';
-        expect(loadConfig().apiUrl).toBe('https://api.example.com');
+        expect(loadStdioConfig().apiUrl).toBe('https://api.example.com');
     });
 
     it('derives sensible defaults', () => {
         process.env.DATALENS_API_URL = 'https://api.example.com';
         process.env.DATALENS_ORG_ID = 'org1';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.schemaUrl).toBe('https://api.example.com/json/');
         expect(config.apiVersion).toBe('latest');
@@ -86,7 +86,7 @@ describe('loadConfig', () => {
 
     it('throws when DATALENS_ORG_ID is missing on the cloud installation', () => {
         process.env.DATALENS_API_URL = 'https://api.example.com';
-        expect(() => loadConfig()).toThrow('DATALENS_ORG_ID');
+        expect(() => loadStdioConfig()).toThrow('DATALENS_ORG_ID');
     });
 
     it('honours explicit overrides', () => {
@@ -96,7 +96,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_API_VERSION = '1.2.3';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
         process.env.DATALENS_MAX_RESPONSE_CHARS = '500';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.schemaUrl).toBe('https://schema.example/spec.json');
         expect(config.apiVersion).toBe('1.2.3');
@@ -108,10 +108,10 @@ describe('loadConfig', () => {
         process.env.DATALENS_API_URL = 'https://api.example.com';
         process.env.DATALENS_ORG_ID = 'org1';
         process.env.DATALENS_MAX_RESPONSE_CHARS = 'not-a-number';
-        expect(loadConfig().maxResponseChars).toBe(100_000);
+        expect(loadStdioConfig().maxResponseChars).toBe(100_000);
 
         process.env.DATALENS_MAX_RESPONSE_CHARS = '-5';
-        expect(loadConfig().maxResponseChars).toBe(100_000);
+        expect(loadStdioConfig().maxResponseChars).toBe(100_000);
     });
 
     it('uses the internal installation without ycIam settings', () => {
@@ -119,7 +119,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_INSTALLATION = 'internal';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
         process.env.DATALENS_YC_PROFILE = 'prod';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.installation).toBe('internal');
         expect(config.ycIam).toBeUndefined();
@@ -131,7 +131,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_INSTALLATION = 'internal';
         process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
 
-        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+        expect(loadStdioConfig().authHeader).toBe('OAuth oauth-token');
     });
 
     it('prefers DATALENS_OAUTH_TOKEN to DATALENS_API_AUTH_HEADER internally', () => {
@@ -140,7 +140,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
         process.env.DATALENS_API_AUTH_HEADER = 'Legacy header';
 
-        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+        expect(loadStdioConfig().authHeader).toBe('OAuth oauth-token');
     });
 
     it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=true', () => {
@@ -149,7 +149,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_YC_STATIC_AUTH = 'true';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
         process.env.DATALENS_OAUTH_TOKEN = 'internal-oauth-token';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.installation).toBe('cloud');
         expect(config.authHeader).toBe('Bearer static-token');
@@ -161,7 +161,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_ORG_ID = 'org1';
         process.env.DATALENS_YC_STATIC_AUTH = '1';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
-        const config = loadConfig();
+        const config = loadStdioConfig();
 
         expect(config.ycIam).toBeUndefined();
     });
@@ -172,7 +172,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_INSTALLATION = 'cloud';
         process.env.DATALENS_YC_PROFILE = 'prod';
         process.env.DATALENS_YC_BIN = '/usr/local/bin/yc';
-        expect(loadConfig().ycIam).toEqual({
+        expect(loadStdioConfig().ycIam).toEqual({
             profile: 'prod',
             bin: '/usr/local/bin/yc',
         });

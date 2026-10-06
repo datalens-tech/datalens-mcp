@@ -4,7 +4,7 @@ import {gzipSync} from 'zlib';
 
 import {describe, expect, it, vi} from 'vitest';
 
-import {readResponseText} from './read-response-text';
+import {readResponseText} from '../read-response-text';
 
 describe('readResponseText', () => {
     it('decodes a multibyte character split between chunks at the exact byte limit', async () => {

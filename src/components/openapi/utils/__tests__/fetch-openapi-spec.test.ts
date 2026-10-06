@@ -1,8 +1,7 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import type {AppConfig} from '../../config';
-
-import {fetchOpenAPISpec} from './fetch-openapi-spec';
+import type {AppConfig} from '../../../config';
+import {fetchOpenAPISpec} from '../fetch-openapi-spec';
 
 const config: AppConfig = {
     installation: 'internal',

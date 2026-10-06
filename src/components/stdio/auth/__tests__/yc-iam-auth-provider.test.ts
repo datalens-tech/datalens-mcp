@@ -2,7 +2,8 @@ import {inspect} from 'util';
 
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import type {YcIamConfig} from '../config';
+import type {YcIamConfig} from '../../config';
+import {createYcIamAuthProvider, fetchYcToken} from '../yc-iam-auth-provider';
 
 const {execFileMock} = vi.hoisted(() => ({execFileMock: vi.fn()}));
 
@@ -14,8 +15,6 @@ vi.mock('child_process', async () => {
         }),
     };
 });
-
-import {createYcIamAuthProvider, fetchYcToken} from './yc-iam-auth-provider';
 
 const baseConfig: YcIamConfig = {
     bin: 'yc',

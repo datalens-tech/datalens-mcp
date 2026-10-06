@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {checkForUpdate} from './check-for-update';
+import {checkForUpdate} from '../check-for-update';
 
 describe('checkForUpdate', () => {
     afterEach(() => vi.unstubAllGlobals());

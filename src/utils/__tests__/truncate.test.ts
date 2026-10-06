@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {truncateText} from './truncate';
+import {truncateText} from '../truncate';
 
 describe('truncateText', () => {
     it('returns text unchanged when no limit is given', () => {

@@ -1,10 +1,10 @@
-import type {AppConfig} from '../config';
+import type {AuthProvider} from '../../auth';
+import type {StdioConfig} from '../config';
 
 import {createStaticAuthProvider} from './static-auth-provider';
-import type {AuthProvider} from './types';
 import {createYcIamAuthProvider} from './yc-iam-auth-provider';
 
-export const createAuthProvider = async (config: AppConfig): Promise<AuthProvider> => {
+export const createAuthProvider = async (config: StdioConfig): Promise<AuthProvider> => {
     if (config.installation === 'cloud' && config.ycIam) {
         return createYcIamAuthProvider(config.ycIam);
     }

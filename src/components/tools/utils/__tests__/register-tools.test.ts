@@ -2,12 +2,68 @@ import {Client, InMemoryTransport} from '@modelcontextprotocol/client';
 import {Server} from '@modelcontextprotocol/server';
 import {describe, expect, it, vi} from 'vitest';
 
-import {INVOKE_TOOL_BY_SCOPE} from '../constants';
-import type {CollectedTool} from '../types';
-
-import {registerTools} from './register-tools';
+import {INVOKE_TOOL_BY_SCOPE} from '../../constants';
+import type {CollectedTool} from '../../types';
+import {registerTools} from '../register-tools';
 
 describe('registerTools', () => {
+    it('resolves stdio credentials for each valid invocation and reports provider failures', async () => {
+        const client = new Client({name: 'test', version: '1'});
+        const server = new Server({name: 'test', version: '1'}, {capabilities: {tools: {}}});
+        const invoke = vi.fn(async () => ({ok: true}));
+        const getAuthHeader = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('Token refresh failed'))
+            .mockResolvedValueOnce('Bearer first-token')
+            .mockResolvedValueOnce('Bearer refreshed-token');
+        registerTools({
+            server,
+            tools: [
+                {
+                    name: 'read',
+                    scope: 'read',
+                    summary: '',
+                    description: '',
+                    rawInputSchema: {},
+                    invoke,
+                },
+            ],
+            maxResponseChars: 1000,
+            authProvider: {getAuthHeader},
+        });
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+        try {
+            await client.listTools();
+            await client.callTool({name: 'list_commands'});
+            await client.callTool({
+                name: 'describe_commands',
+                arguments: {command_names: ['read']},
+            });
+            const denied = await client.callTool({
+                name: 'invoke_write_command',
+                arguments: {command_name: 'read'},
+            });
+            expect(denied.isError).toBe(true);
+            expect(getAuthHeader).not.toHaveBeenCalled();
+
+            const call = {name: 'invoke_read_command', arguments: {command_name: 'read'}};
+            const failed = await client.callTool(call);
+            expect(failed.isError).toBe(true);
+            expect(JSON.stringify(failed.content)).toContain('Token refresh failed');
+            expect(invoke).not.toHaveBeenCalled();
+            for (const token of ['Bearer first-token', 'Bearer refreshed-token']) {
+                expect((await client.callTool(call)).isError).not.toBe(true);
+                expect(invoke).toHaveBeenLastCalledWith({}, token);
+            }
+            expect(getAuthHeader).toHaveBeenCalledTimes(3);
+        } finally {
+            await client.close();
+            await server.close();
+        }
+    });
+
     it('enforces the scope boundary for every invocation tool and exposes routing metadata', async () => {
         const client = new Client({name: 'test', version: '1'});
         const server = new Server({name: 'test', version: '1'}, {capabilities: {tools: {}}});
@@ -53,7 +109,10 @@ describe('registerTools', () => {
                     if (scope === command.scope) {
                         expect(result.isError).not.toBe(true);
                         expect(JSON.parse(readResult(result).data)).toEqual({id: 'test'});
-                        expect(command.invoke).toHaveBeenCalledExactlyOnceWith({id: 'test'});
+                        expect(command.invoke).toHaveBeenCalledExactlyOnceWith(
+                            {id: 'test'},
+                            undefined,
+                        );
                     } else {
                         expect(result.isError).toBe(true);
                         expect(command.invoke).not.toHaveBeenCalled();

@@ -1,10 +1,8 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import type {AuthProvider} from '../../auth';
-import type {AppConfig} from '../../config';
-import type {OpenAPISpec} from '../../openapi';
-
-import {collectTools} from './collect-tools';
+import type {AppConfig} from '../../../config';
+import type {OpenAPISpec} from '../../../openapi';
+import {collectTools} from '../collect-tools';
 
 const config: AppConfig = {
     apiUrl: 'https://api.example.com',
@@ -13,8 +11,6 @@ const config: AppConfig = {
     apiVersion: 'latest',
     maxResponseChars: 100_000,
 };
-
-const authProvider: AuthProvider = {getAuthHeader: () => undefined};
 
 describe('collectTools', () => {
     it('accepts only explicitly classified operations and keeps disabled operations unavailable', () => {
@@ -30,9 +26,7 @@ describe('collectTools', () => {
                 "/rpc/disabled": {"post": {"x-mcp-scope": "read", "x-mcp-disabled": true}}
             }
         }`);
-        expect(
-            collectTools(spec, config, authProvider).map(({name, scope}) => ({name, scope})),
-        ).toEqual([
+        expect(collectTools(spec, config).map(({name, scope}) => ({name, scope}))).toEqual([
             {name: 'read', scope: 'read'},
             {name: 'write', scope: 'write'},
             {name: 'privileged', scope: 'privileged'},
@@ -50,12 +44,9 @@ describe('collectTools', () => {
         const [tool] = collectTools(
             {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
             config,
-            {
-                getAuthHeader: () => 'Bearer test-token',
-            },
         );
-        expect(await tool.invoke({id: 'entry'})).toEqual({id: 'entry'});
-        expect(await tool.invoke({})).toBe('plain text');
+        expect(await tool.invoke({id: 'entry'}, 'Bearer test-token')).toEqual({id: 'entry'});
+        expect(await tool.invoke({}, 'Bearer test-token')).toBe('plain text');
         expect(fetchMock).toHaveBeenCalledWith(
             'https://api.example.com/rpc/test',
             expect.objectContaining({
@@ -66,17 +57,14 @@ describe('collectTools', () => {
         );
     });
 
-    it('rejects HTTP before obtaining or sending credentials', async () => {
-        const getAuthHeader = vi.fn();
+    it('rejects HTTP before sending credentials', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         const [tool] = collectTools(
             {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
             {...config, apiUrl: 'http://api.example.com'},
-            {getAuthHeader},
         );
-        await expect(tool.invoke({})).rejects.toThrow('HTTPS');
-        expect(getAuthHeader).not.toHaveBeenCalled();
+        await expect(tool.invoke({}, 'Bearer test-token')).rejects.toThrow('HTTPS');
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -92,7 +80,6 @@ describe('collectTools', () => {
         const [tool] = collectTools(
             {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
             config,
-            authProvider,
         );
         const error = await tool.invoke({}).catch((error: unknown) => error);
         expect(error).toBeInstanceOf(Error);
@@ -109,7 +96,7 @@ describe('collectTools', () => {
             },
         };
 
-        const tools = collectTools(spec, config, authProvider);
+        const tools = collectTools(spec, config);
 
         expect(tools).toHaveLength(1);
         expect(tools[0].name).toBe('getWorkbookEntries');
@@ -123,7 +110,7 @@ describe('collectTools', () => {
             },
         };
 
-        const tools = collectTools(spec, config, authProvider);
+        const tools = collectTools(spec, config);
 
         expect(tools).toHaveLength(1);
         expect(tools[0].name).toBe('getQLChart');
@@ -133,7 +120,7 @@ describe('collectTools', () => {
         const spec: OpenAPISpec = {
             paths: {'/api/v1/rpc/createDataset': {post: {'x-mcp-scope': 'write'}}},
         };
-        expect(collectTools(spec, config, authProvider)[0].name).toBe('createDataset');
+        expect(collectTools(spec, config)[0].name).toBe('createDataset');
     });
 
     it('builds a description from summary, description and deprecation flag', () => {
@@ -145,7 +132,7 @@ describe('collectTools', () => {
             },
         };
 
-        const [a, b, c] = collectTools(spec, config, authProvider);
+        const [a, b, c] = collectTools(spec, config);
 
         expect(a.description).toBe('Sum — Detail');
         expect(b.description).toBe('[deprecated] Old');
@@ -156,7 +143,7 @@ describe('collectTools', () => {
         const spec: OpenAPISpec = {
             paths: {'/rpc/noBody': {post: {'x-mcp-scope': 'read'}}},
         };
-        expect(collectTools(spec, config, authProvider)[0].rawInputSchema).toEqual({
+        expect(collectTools(spec, config)[0].rawInputSchema).toEqual({
             type: 'object',
             properties: {},
         });
@@ -183,7 +170,7 @@ describe('collectTools', () => {
             },
         };
 
-        const schema = collectTools(spec, config, authProvider)[0].rawInputSchema;
+        const schema = collectTools(spec, config)[0].rawInputSchema;
 
         expect(schema.$ref).toBe('#/$defs/Body');
         expect((schema.$defs as Record<string, unknown>).Body).toEqual(

@@ -1,8 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
-import type {JsonSchema} from '../types';
-
-import {bundleRefs} from './bundle-refs';
+import type {JsonSchema} from '../../types';
+import {bundleRefs} from '../bundle-refs';
 
 describe('bundleRefs', () => {
     it('bundles a wide reference graph within a linear node budget', () => {

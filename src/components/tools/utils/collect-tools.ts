@@ -4,7 +4,6 @@ import {
     validateHttpsUrl,
     withRequestTimeout,
 } from '../../../utils';
-import type {AuthProvider} from '../../auth';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {bundleRefs, isMcpScope} from '../../openapi';
@@ -22,7 +21,7 @@ const EMPTY_OBJECT_SCHEMA: JsonSchema = {
 const toolNameFromPath = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? '';
 
 // Headers that never change for the lifetime of the server. The Authorization
-// header is added per-request from the auth provider so a refreshed token is picked up.
+// header is passed explicitly for each invocation.
 const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
         'content-type': 'application/json',
@@ -57,11 +56,9 @@ const buildInvokeFn =
         requestUrl: string,
         path: string,
         baseHeaders: Record<string, string>,
-        authProvider: AuthProvider,
     ): CollectedTool['invoke'] =>
-    async (args) => {
+    async (args, authHeader) => {
         validateHttpsUrl(requestUrl, 'API request URL');
-        const authHeader = await authProvider.getAuthHeader();
         const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
 
         return withRequestTimeout('DataLens API request', async (signal) => {
@@ -93,7 +90,6 @@ const buildTool = (
     components: OpenAPISpec['components'],
     config: AppConfig,
     baseHeaders: Record<string, string>,
-    authProvider: AuthProvider,
     schemaBudget: {remainingNodes: number},
 ): CollectedTool => {
     const name = toolNameFromPath(path);
@@ -109,15 +105,11 @@ const buildTool = (
         summary: operation.summary ?? name,
         description: buildDescription(operation, name),
         rawInputSchema,
-        invoke: buildInvokeFn(requestUrl, path, baseHeaders, authProvider),
+        invoke: buildInvokeFn(requestUrl, path, baseHeaders),
     };
 };
 
-export const collectTools = (
-    spec: OpenAPISpec,
-    config: AppConfig,
-    authProvider: AuthProvider,
-): CollectedTool[] => {
+export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedTool[] => {
     const baseHeaders = buildBaseHeaders(config);
     const schemaBudget = {remainingNodes: MAX_BUNDLED_SCHEMA_NODES};
 
@@ -131,16 +123,7 @@ export const collectTools = (
             return [];
         }
         return [
-            buildTool(
-                path,
-                operation,
-                scope,
-                spec.components,
-                config,
-                baseHeaders,
-                authProvider,
-                schemaBudget,
-            ),
+            buildTool(path, operation, scope, spec.components, config, baseHeaders, schemaBudget),
         ];
     });
 };

@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {validateHttpsUrl} from './validate-https-url';
+import {validateHttpsUrl} from '../validate-https-url';
 
 describe('validateHttpsUrl', () => {
     afterEach(() => vi.unstubAllEnvs());

@@ -1,6 +1,6 @@
 import {gt, prerelease, valid} from 'semver';
 
-import {readResponseText} from './read-response-text';
+import {readResponseText} from '../../utils/read-response-text';
 
 const PACKAGE_METADATA_URL = 'https://registry.npmjs.org/@datalens-tech%2Fmcp/latest';
 const MAX_METADATA_BYTES = 64 * 1024;

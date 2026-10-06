@@ -1,9 +1,8 @@
 import {execFile} from 'child_process';
 import {promisify} from 'util';
 
+import type {AuthProvider} from '../../auth';
 import type {YcIamConfig} from '../config';
-
-import type {AuthProvider} from './types';
 
 const execFileAsync = promisify(execFile);
 

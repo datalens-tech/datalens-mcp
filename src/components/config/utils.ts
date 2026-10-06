@@ -1,11 +1,10 @@
 import {validateHttpsUrl} from '../../utils';
 
-import {AppConfig, Installation, YcIamConfig} from './types';
+import {AppConfig, Installation} from './types';
 
 const DEFAULT_MAX_RESPONSE_CHARS = 100_000;
 const DEFAULT_INSTALLATION: Installation = 'cloud';
 const DEFAULT_CLOUD_API_URL = 'https://api.datalens.tech';
-const DEFAULT_YC_BIN = 'yc';
 
 const parseMaxResponseChars = (raw: string | undefined): number => {
     if (!raw) {
@@ -18,25 +17,7 @@ const parseMaxResponseChars = (raw: string | undefined): number => {
 const parseInstallation = (raw: string | undefined): Installation =>
     raw?.trim().toLowerCase() === 'internal' ? 'internal' : DEFAULT_INSTALLATION;
 
-const parseBool = (raw: string | undefined): boolean =>
-    raw === '1' || raw?.toLowerCase() === 'true';
-
-const resolveAuthHeader = (installation: Installation): string | undefined => {
-    const oauthToken = process.env.DATALENS_OAUTH_TOKEN?.trim();
-
-    if (installation === 'internal' && oauthToken) {
-        return `OAuth ${oauthToken}`;
-    }
-
-    return process.env.DATALENS_API_AUTH_HEADER;
-};
-
-const getYcIamConfig = (): YcIamConfig => ({
-    profile: process.env.DATALENS_YC_PROFILE || undefined,
-    bin: process.env.DATALENS_YC_BIN || DEFAULT_YC_BIN,
-});
-
-export const loadConfig = (): AppConfig => {
+export const loadConfigCommon = (): AppConfig => {
     const installation = parseInstallation(process.env.DATALENS_INSTALLATION);
     const isCloud = installation === 'cloud';
 
@@ -53,18 +34,10 @@ export const loadConfig = (): AppConfig => {
         throw new Error('DATALENS_ORG_ID env is not set (required for the cloud installation)');
     }
 
-    let ycIam: YcIamConfig | undefined;
-
-    if (isCloud && !parseBool(process.env.DATALENS_YC_STATIC_AUTH)) {
-        ycIam = getYcIamConfig();
-    }
-
     return {
         apiUrl,
         installation,
         orgId: isCloud ? orgId : undefined,
-        authHeader: resolveAuthHeader(installation),
-        ycIam,
         schemaUrl,
         apiVersion: process.env.DATALENS_API_VERSION ?? 'latest',
         maxResponseChars: parseMaxResponseChars(process.env.DATALENS_MAX_RESPONSE_CHARS),
