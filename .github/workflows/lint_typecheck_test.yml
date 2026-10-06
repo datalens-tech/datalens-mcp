@@ -27,3 +27,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Test release safeguards
+        run: node --test .github/scripts/*.node-test.*
