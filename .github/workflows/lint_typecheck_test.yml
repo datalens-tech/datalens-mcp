@@ -2,7 +2,11 @@ name: Lint, Typecheck, Test
 
 on:
   pull_request:
-  
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint-and-typecheck:
     name: Lint & TS check & Test
