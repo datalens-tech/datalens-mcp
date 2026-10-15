@@ -1,0 +1,136 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version already merged into main (for example, 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'datalens-tech/datalens-mcp' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.17.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate requested version
+        id: version
+        run: node .github/scripts/publish.mjs version
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+
+      - name: Check existing release and tag
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const release = require('./.github/scripts/github-release.cjs');
+            await release({github, context, version: process.env.RELEASE_VERSION});
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Test release safeguards
+        run: node --test .github/scripts/*.node-test.*
+
+      - name: Build and pack
+        run: npm pack --json > pack.json
+
+      - name: Validate package contents
+        id: pack
+        run: node .github/scripts/publish.mjs pack
+
+      - name: Check built archive
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          unpacked=$(mktemp -d)
+          tar -xzf "$TARBALL" -C "$unpacked"
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find "$unpacked/package/dist" -name '*.js' -print0)
+          UNPACKED_PACKAGE="$unpacked/package" node <<'NODE'
+          const assert = require('node:assert/strict');
+          const path = require('node:path');
+          const root = process.env.UNPACKED_PACKAGE;
+          const pkg = require(path.join(root, 'package.json'));
+          const {getPackageVersion} = require(path.join(root, 'dist/utils/get-package-version.js'));
+          assert.equal(pkg.version, process.env.RELEASE_VERSION);
+          assert.equal(getPackageVersion(), process.env.RELEASE_VERSION);
+          assert.ok(require('node:fs').readFileSync(path.join(root, 'dist/index.js'), 'utf8').startsWith('#!/usr/bin/env node'));
+          NODE
+
+      - name: Save checked package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-package-${{ steps.version.outputs.version }}
+          path: |
+            ${{ steps.pack.outputs.tarball }}
+            pack.json
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Check npm registry
+        id: registry
+        run: node .github/scripts/publish.mjs registry
+
+      - name: Publish checked archive using OIDC
+        if: steps.registry.outputs.published != 'true'
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "./$TARBALL" --access public --provenance --tag latest --registry https://registry.npmjs.org
+
+      - name: Verify published integrity
+        run: node .github/scripts/publish.mjs registry --require-published
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create release and tag after publication
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+        with:
+          script: |
+            const release = require('./.github/scripts/github-release.cjs');
+            await release({github, context, version: process.env.RELEASE_VERSION, create: true});
