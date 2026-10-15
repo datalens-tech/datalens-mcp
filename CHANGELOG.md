@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+### Added
+
+- Publish npm releases from GitHub Actions using OIDC trusted publishing.
+- Validate package archives before publication and create version tags and
+  GitHub Releases, with support for recovering failed release runs.
+
 ## 0.2.0
 
 ### Changed
