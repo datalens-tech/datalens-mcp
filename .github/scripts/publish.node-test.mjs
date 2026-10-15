@@ -1,7 +1,13 @@
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {checkRegistry, validatePack, validateTarball, validateVersion} from './publish.mjs';
+import {
+    checkRegistry,
+    validatePack,
+    validateTarball,
+    validateVersion,
+    waitForPublication,
+} from './publish.mjs';
 
 const name = '@datalens-tech/mcp';
 const version = '1.2.3';
@@ -240,4 +246,140 @@ test('requires the published version to exist during post-publish confirmation',
         ),
         true,
     );
+});
+
+function publicationWait(fetchRegistry, timeoutMs = 40_000) {
+    let elapsedMs = 0;
+    const waits = [];
+    const messages = [];
+    return {
+        waits,
+        messages,
+        advance(ms) {
+            elapsedMs += ms;
+        },
+        options: {
+            fetchRegistry,
+            timeoutMs,
+            intervalMs: 15_000,
+            now: () => elapsedMs,
+            delay: async (ms) => {
+                waits.push(ms);
+                elapsedMs += ms;
+            },
+            log: (message) => messages.push(message),
+        },
+    };
+}
+
+const visibleVersion = () => ({
+    status: 200,
+    json: async () => ({name, versions: {[version]: {dist: {integrity}}}}),
+});
+
+test('post-publish confirmation returns immediately for an already visible matching archive', async () => {
+    const clock = publicationWait(async () => visibleVersion());
+    assert.equal(await waitForPublication(version, integrity, clock.options), true);
+    assert.deepEqual(clock.waits, []);
+    assert.deepEqual(clock.messages, []);
+});
+
+test('post-publish confirmation waits through missing metadata until npm makes the version visible', async () => {
+    const responses = [
+        {status: 404},
+        {status: 200, json: async () => ({name, versions: {}, 'dist-tags': {latest: '1.2.2'}})},
+        visibleVersion(),
+    ];
+    const clock = publicationWait(async (url, options) => {
+        assert.ok(options.signal instanceof AbortSignal);
+        assert.equal(options.headers['Cache-Control'], 'no-cache');
+        assert.ok(responses.length > 0, 'Unexpected extra registry request');
+        return responses.shift();
+    });
+    assert.equal(await waitForPublication(version, integrity, clock.options), true);
+    assert.equal(responses.length, 0);
+    assert.deepEqual(clock.waits, [15_000, 15_000]);
+    assert.equal(clock.messages.length, 2);
+    assert.match(clock.messages[0], /may still be validating/);
+});
+
+test('post-publish confirmation stops at its deadline and explains how to recover', async () => {
+    let requests = 0;
+    const clock = publicationWait(async () => {
+        requests++;
+        return {status: 404};
+    });
+    await assert.rejects(
+        waitForPublication(version, integrity, clock.options),
+        /Timed out after 40s.*Once it is Published, use Re-run all jobs on the original workflow run/,
+    );
+    assert.equal(requests, 3);
+    assert.deepEqual(clock.waits, [15_000, 15_000, 10_000]);
+});
+
+test('post-publish deadline includes time spent reading registry responses', async () => {
+    let requests = 0;
+    const clock = publicationWait(async () => {
+        requests++;
+        clock.advance(30_000);
+        return {status: 404};
+    });
+    await assert.rejects(
+        waitForPublication(version, integrity, clock.options),
+        /Timed out after 40s/,
+    );
+    assert.equal(requests, 1);
+    assert.deepEqual(clock.waits, [10_000]);
+});
+
+test('post-publish confirmation fails immediately if a newly visible archive has different integrity', async () => {
+    let requests = 0;
+    const clock = publicationWait(async () => {
+        requests++;
+        return requests === 1
+            ? {status: 404}
+            : {
+                  status: 200,
+                  json: async () => ({
+                      name,
+                      versions: {[version]: {dist: {integrity: 'different'}}},
+                  }),
+              };
+    });
+    await assert.rejects(waitForPublication(version, integrity, clock.options), /does not match/);
+    assert.equal(requests, 2);
+    assert.deepEqual(clock.waits, [15_000]);
+});
+
+test('post-publish confirmation does not retry HTTP, network, or invalid metadata errors', async () => {
+    const failures = [
+        ...[401, 403, 429, 500].map((status) => ({
+            fetch: async () => ({status}),
+            error: new RegExp(`HTTP ${status}`),
+        })),
+        {
+            fetch: async () => {
+                throw new Error('Published version is not yet available in npm registry');
+            },
+            error: /not yet available/,
+        },
+        {
+            fetch: async () => ({
+                status: 200,
+                json: async () => {
+                    throw new Error('Invalid JSON');
+                },
+            }),
+            error: /Invalid JSON/,
+        },
+        {
+            fetch: async () => ({status: 200, json: async () => ({name: 'other', versions: {}})}),
+            error: /invalid package metadata/,
+        },
+    ];
+    for (const failure of failures) {
+        const clock = publicationWait(failure.fetch);
+        await assert.rejects(waitForPublication(version, integrity, clock.options), failure.error);
+        assert.deepEqual(clock.waits, []);
+    }
 });

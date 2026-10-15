@@ -1,6 +1,8 @@
 import {createHash} from 'node:crypto';
 import {appendFileSync, readFileSync} from 'node:fs';
+import {setTimeout as sleep} from 'node:timers/promises';
 import {pathToFileURL} from 'node:url';
+
 import semver from 'semver';
 
 const packageName = '@datalens-tech/mcp';
@@ -89,20 +91,25 @@ export function validateTarball(bytes, integrity) {
     }
 }
 
+class PublicationPendingError extends Error {}
+
 export async function checkRegistry(
     version,
     integrity,
     fetchRegistry = fetch,
     requirePublished = false,
+    signal = AbortSignal.timeout(30_000),
 ) {
     const response = await fetchRegistry('https://registry.npmjs.org/@datalens-tech%2fmcp', {
-        signal: AbortSignal.timeout(30_000),
+        signal,
         redirect: 'error',
-        headers: {Accept: 'application/vnd.npm.install-v1+json'},
+        headers: {Accept: 'application/vnd.npm.install-v1+json', 'Cache-Control': 'no-cache'},
     });
     if (response.status === 404) {
         if (requirePublished) {
-            throw new Error('Published version is not yet available in npm registry');
+            throw new PublicationPendingError(
+                'Published version is not yet available in npm registry',
+            );
         }
         return false;
     }
@@ -125,7 +132,7 @@ export async function checkRegistry(
         return true;
     }
     if (requirePublished) {
-        throw new Error('Published version is not yet available in npm registry');
+        throw new PublicationPendingError('Published version is not yet available in npm registry');
     }
     const latest = metadata['dist-tags']?.latest;
     if (typeof latest !== 'string' || semver.valid(latest) !== latest) {
@@ -135,6 +142,45 @@ export async function checkRegistry(
         throw new Error(`New version ${version} must be newer than npm latest ${latest}`);
     }
     return false;
+}
+
+export async function waitForPublication(
+    version,
+    integrity,
+    {
+        fetchRegistry = fetch,
+        timeoutMs = 10 * 60_000,
+        intervalMs = 15_000,
+        now = () => performance.now(),
+        delay = sleep,
+        log = console.error,
+    } = {},
+) {
+    const deadline = now() + timeoutMs;
+    while (true) {
+        const requestBudgetMs = deadline - now();
+        if (requestBudgetMs <= 0) break;
+        const signal = AbortSignal.timeout(Math.ceil(Math.min(30_000, requestBudgetMs)));
+        try {
+            return await checkRegistry(version, integrity, fetchRegistry, true, signal);
+        } catch (error) {
+            if (!(error instanceof PublicationPendingError)) {
+                if (signal.aborted && now() >= deadline) break;
+                throw error;
+            }
+        }
+        const remainingMs = deadline - now();
+        if (remainingMs <= 0) break;
+        const waitMs = Math.min(intervalMs, remainingMs);
+        log(
+            `npm version ${version} is not yet visible; it may still be validating. Retrying in ${Math.ceil(waitMs / 1000)}s.`,
+        );
+        await delay(waitMs);
+    }
+    throw new Error(
+        `Timed out after ${Math.ceil(timeoutMs / 1000)}s waiting for ${packageName}@${version} to become visible in npm. ` +
+            'npm may still be validating it. Once it is Published, use Re-run all jobs on the original workflow run.',
+    );
 }
 
 function readJson(path) {
@@ -169,12 +215,9 @@ async function main(command) {
             output({tarball: pack.filename, integrity: pack.integrity});
         } else {
             output({
-                published: await checkRegistry(
-                    pkg.version,
-                    pack.integrity,
-                    fetch,
-                    process.argv.includes('--require-published'),
-                ),
+                published: process.argv.includes('--require-published')
+                    ? await waitForPublication(pkg.version, pack.integrity)
+                    : await checkRegistry(pkg.version, pack.integrity),
             });
         }
     } else {

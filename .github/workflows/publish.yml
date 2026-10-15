@@ -115,7 +115,7 @@ jobs:
           TARBALL: ${{ steps.pack.outputs.tarball }}
         run: npm publish "./$TARBALL" --access public --provenance --tag latest --registry https://registry.npmjs.org
 
-      - name: Verify published integrity
+      - name: Wait for npm validation and verify published integrity
         run: node .github/scripts/publish.mjs registry --require-published
 
   release:
