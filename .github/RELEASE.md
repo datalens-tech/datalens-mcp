@@ -24,6 +24,9 @@
 
 - The workflow runs typecheck, lint and tests, builds and validates the tarball,
   then publishes that archive. The checked archive is saved as an Actions artifact
+- After npm accepts the upload, the workflow checks visibility every 15 seconds
+  for up to 10 minutes, then verifies the published archive integrity. npm may
+  keep the version in `Validating` while its automated review runs
 - The tag points to the workflow commit. Release notes are generated automatically
 
 ## Recover a failed run
@@ -33,7 +36,9 @@
 - An identical published package is skipped. A matching tag and Release are
   preserved; missing release objects are created. Artifact uploads replace the
   previous artifact, so repeating a completed upload does not block recovery
-- If npm visibility lags publication, wait and rerun the original run
+- If npm validation exceeds the 10-minute wait, wait until the version is
+  `Published`, then rerun the original run. Reruns use the original workflow
+  and commit, including its original waiting behavior
 - Different package integrity or a conflicting tag stops recovery. npm versions
   are immutable: release changed code under a new version, without moving tags
 - A draft Release may only be detected after npm publication. Resolve the draft
