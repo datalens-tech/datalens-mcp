@@ -9,6 +9,9 @@ const packageName = '@datalens-tech/mcp';
 const requiredFiles = [
     'package.json',
     'README.md',
+    'docs/cloud.md',
+    'docs/internal.md',
+    'docs/enterprise.md',
     'LICENSE',
     'NOTICES',
     'dist/index.js',

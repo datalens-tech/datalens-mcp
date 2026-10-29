@@ -1,3 +1,4 @@
+import {HTTP_HEADER} from '../../../constants';
 import {
     MAX_API_RESPONSE_BYTES,
     readResponseText,
@@ -5,6 +6,7 @@ import {
     withRequestTimeout,
 } from '../../../utils';
 import type {AuthProvider} from '../../auth';
+import {INSTALLATION} from '../../config';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {bundleRefs, isMcpScope} from '../../openapi';
@@ -25,11 +27,11 @@ const toolNameFromPath = (path: string): string => path.split('/').filter(Boolea
 // header is added per-request from the auth provider so a refreshed token is picked up.
 const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
-        'content-type': 'application/json',
-        'x-dl-api-version': config.apiVersion,
+        [HTTP_HEADER.CONTENT_TYPE]: 'application/json',
+        [HTTP_HEADER.DL_API_VERSION]: config.apiVersion,
     };
-    if (config.orgId) {
-        headers['x-dl-org-id'] = config.orgId;
+    if (config.installation === INSTALLATION.CLOUD) {
+        headers[HTTP_HEADER.DL_ORG_ID] = config.orgId;
     }
     return headers;
 };
@@ -62,7 +64,9 @@ const buildInvokeFn =
     async (args) => {
         validateHttpsUrl(requestUrl, 'API request URL');
         const authHeader = await authProvider.getAuthHeader();
-        const headers = authHeader ? {...baseHeaders, Authorization: authHeader} : baseHeaders;
+        const headers = authHeader
+            ? {...baseHeaders, [HTTP_HEADER.AUTHORIZATION]: authHeader}
+            : baseHeaders;
 
         return withRequestTimeout('DataLens API request', async (signal) => {
             const res = await fetch(requestUrl, {

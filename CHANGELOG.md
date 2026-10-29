@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- Support DataLens Enterprise installations with service account JSON keys,
+  automatic access token renewal, or a static Bearer token.
+- Add separate setup guides for Cloud, Internal and Enterprise installations
+  and include them in the npm package.
+
+### Changed
+
+- Disable npm update checks and notices for Enterprise installations.
+- Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
+
 ## 0.2.1
 
 ### Added
@@ -16,6 +30,13 @@
   tools, enforcing the declared OpenAPI scope before executing API calls.
 - Exclude operations without a supported `x-mcp-scope` and include scope and
   invocation tool names in command discovery results.
+
+### Upgrading
+
+- Before upgrading to 0.2.0, update DataLens to provide an OpenAPI schema with
+  `x-mcp-scope` classifications. The MCP server cannot start without classified commands.
+- Update client approval policies to use `invoke_read_command`, `invoke_write_command`,
+  and `invoke_privileged_command` instead of the removed `invoke_command` tool.
 
 ### Added
 
