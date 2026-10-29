@@ -23,6 +23,9 @@ const lock = {name, version, packages: {'': {name, version}}};
 const files = [
     'package.json',
     'README.md',
+    'docs/cloud.md',
+    'docs/internal.md',
+    'docs/enterprise.md',
     'LICENSE',
     'NOTICES',
     'dist/index.js',
@@ -80,6 +83,7 @@ test('accepts the package artifact and rejects unexpected content', () => {
         'dist/app.js.map',
         'dist/app.test.js',
         'dist/__tests__/app.js',
+        'docs/secret.json',
         '../secret.js',
     ]) {
         assert.throws(
@@ -89,15 +93,17 @@ test('accepts the package artifact and rejects unexpected content', () => {
     }
 });
 
-test('rejects missing entrypoints and invalid artifact metadata', () => {
-    assert.throws(
-        () =>
-            validatePack(
-                [{...pack, files: pack.files.filter((file) => file.path !== 'dist/index.js')}],
-                version,
-            ),
-        /Required file/,
-    );
+test('rejects missing entrypoints, setup guides and invalid artifact metadata', () => {
+    for (const path of ['dist/index.js', 'docs/cloud.md', 'docs/internal.md', 'docs/enterprise.md']) {
+        assert.throws(
+            () =>
+                validatePack(
+                    [{...pack, files: pack.files.filter((file) => file.path !== path)}],
+                    version,
+                ),
+            /Required file/,
+        );
+    }
     assert.throws(() => validatePack([], version), /exactly one/);
     assert.throws(() => validatePack([{...pack, version: '1.2.4'}], version), /name or version/);
     assert.throws(() => validatePack([{...pack, integrity: 'sha1-invalid'}], version), /SHA512/);
