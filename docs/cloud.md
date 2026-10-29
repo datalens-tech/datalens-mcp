@@ -79,4 +79,7 @@ authentication, omit `DATALENS_YC_STATIC_AUTH` and `DATALENS_API_AUTH_HEADER`.
 | `DATALENS_API_AUTH_HEADER` | —                           | Full static `Authorization` header.     |
 
 The default OpenAPI URL is `{DATALENS_API_URL}/json/`.
+Setting `DATALENS_API_VERSION=2` selects `{DATALENS_API_URL}/2/json/` automatically.
+`DATALENS_SCHEMA_URL` overrides the URL; keep its schema version consistent with
+`DATALENS_API_VERSION`.
 See [shared configuration](../README.md#configuration-reference) for overrides.

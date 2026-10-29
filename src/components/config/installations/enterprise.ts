@@ -14,10 +14,7 @@ export type EnterpriseConfig = CommonConfig & {
 };
 
 export const loadEnterpriseConfig = (): EnterpriseConfig => {
-    const common = loadCommonConfig(requireApiUrl(INSTALLATION.ENTERPRISE), (apiVersion) => {
-        const versionPath = apiVersion === 'latest' ? '' : `${encodeURIComponent(apiVersion)}/`;
-        return `/api/docs/swagger/${versionPath}json/`;
-    });
+    const common = loadCommonConfig(requireApiUrl(INSTALLATION.ENTERPRISE), '/api/docs/swagger');
     const keyFile = process.env.DATALENS_SERVICE_ACCOUNT_KEY_FILE?.trim();
     const header = process.env.DATALENS_API_AUTH_HEADER;
     if (Boolean(keyFile) === Boolean(header?.trim())) {

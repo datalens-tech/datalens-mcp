@@ -232,6 +232,42 @@ describe('loadConfig', () => {
         expect(loadConfig().auth).toEqual({type: 'yc-iam', profile: undefined, bin: 'yc'});
     });
 
+    describe.each([
+        [INSTALLATION.CLOUD, ''],
+        [INSTALLATION.INTERNAL, ''],
+        [INSTALLATION.ENTERPRISE, '/api/docs/swagger'],
+    ])('%s schema version', (installation, schemaPrefix) => {
+        beforeEach(() => {
+            process.env.DATALENS_INSTALLATION = installation;
+            process.env.DATALENS_API_URL = 'https://api.example.com/';
+            process.env.DATALENS_ORG_ID = 'org1';
+            process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
+        });
+
+        it.each([undefined, 'latest', '2'])(
+            'matches schema and RPC versions when DATALENS_API_VERSION is %s',
+            (apiVersion) => {
+                if (apiVersion !== undefined) {
+                    process.env.DATALENS_API_VERSION = apiVersion;
+                }
+                const config = loadConfig();
+                const schemaPath = apiVersion === '2' ? '/2/json/' : '/json/';
+                expect(config.schemaUrl).toBe(
+                    `https://api.example.com${schemaPrefix}${schemaPath}`,
+                );
+                expect(config.apiVersion).toBe(apiVersion ?? 'latest');
+            },
+        );
+
+        it('preserves an explicit schema URL with a pinned API version', () => {
+            process.env.DATALENS_API_VERSION = '2';
+            process.env.DATALENS_SCHEMA_URL = 'https://schema.example.com/custom.json?version=2';
+            const config = loadConfig();
+            expect(config.schemaUrl).toBe(process.env.DATALENS_SCHEMA_URL);
+            expect(config.apiVersion).toBe('2');
+        });
+    });
+
     describe('enterprise', () => {
         beforeEach(() => {
             process.env.DATALENS_INSTALLATION = 'enterprise';
@@ -247,15 +283,6 @@ describe('loadConfig', () => {
                 schemaUrl: 'https://datalens.example.com/api/docs/swagger/json/',
                 auth: {type: 'service-account', keyFile: '/keys/sa.json'},
             });
-        });
-
-        it('matches schema and RPC versions and honours the schema override', () => {
-            process.env.DATALENS_API_VERSION = '2';
-            expect(loadConfig().schemaUrl).toBe(
-                'https://datalens.example.com/api/docs/swagger/2/json/',
-            );
-            process.env.DATALENS_SCHEMA_URL = 'https://schema.example.com/spec.json';
-            expect(loadConfig().schemaUrl).toBe(process.env.DATALENS_SCHEMA_URL);
         });
 
         it('requires an API URL', () => {

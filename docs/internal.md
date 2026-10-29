@@ -45,6 +45,10 @@ For a global installation, see [Run](../README.md#via-a-global-install).
 | `DATALENS_OAUTH_TOKEN`     | —                    | Token sent with the `OAuth` prefix.                  |
 | `DATALENS_API_AUTH_HEADER` | —                    | Full static header, used when no OAuth token is set. |
 
-The default OpenAPI URL is `{DATALENS_API_URL}/json/`. Tokens are static;
-restart the MCP server after changing them.
+The default OpenAPI URL is `{DATALENS_API_URL}/json/`.
+Setting `DATALENS_API_VERSION=2` selects `{DATALENS_API_URL}/2/json/` automatically.
+`DATALENS_SCHEMA_URL` overrides the URL; keep its schema version consistent with
+`DATALENS_API_VERSION`.
+
+Tokens are static; restart the MCP server after changing them.
 See [shared configuration](../README.md#configuration-reference) for overrides.

@@ -22,13 +22,12 @@ export const requireApiUrl = (installation: Installation): string => {
     return apiUrl;
 };
 
-export const loadCommonConfig = (
-    baseUrl: string,
-    getSchemaPath: (apiVersion: string) => string = () => '/json/',
-): CommonConfig => {
+export const loadCommonConfig = (baseUrl: string, schemaPrefix = ''): CommonConfig => {
     const apiUrl = baseUrl.replace(/\/$/, '');
     const apiVersion = process.env.DATALENS_API_VERSION ?? 'latest';
-    const schemaUrl = process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}${getSchemaPath(apiVersion)}`;
+    const versionPath = apiVersion === 'latest' ? '' : `${encodeURIComponent(apiVersion)}/`;
+    const schemaUrl =
+        process.env.DATALENS_SCHEMA_URL ?? `${apiUrl}${schemaPrefix}/${versionPath}json/`;
     validateHttpsUrl(apiUrl, 'DATALENS_API_URL');
     validateHttpsUrl(schemaUrl, 'DATALENS_SCHEMA_URL');
     return {
