@@ -19,18 +19,12 @@ The typical agent flow is: `list_commands` → `describe_commands` for the ones 
 needs → the invocation tool indicated by `invoke_tool`.
 
 Both discovery tools include each command's `scope` and `invoke_tool`. Invocation
-checks the scope on the server before executing the API call. Operations without
-a supported scope, or marked `x-mcp-disabled`, are unavailable. An OpenAPI schema
-with no classified commands causes startup to fail rather than exposing an
-unclassified gateway.
+checks the scope on the server before executing the API call.
 
-The old `invoke_command` tool is removed. Update client approval policies to
-allow `invoke_read_command` separately from write and privileged calls. Privileged
-calls require explicit user approval; descriptions and MCP annotations are hints,
+Configure client approval policies for read, write, and privileged tools separately.
+Privileged calls require explicit user approval; descriptions and MCP annotations are hints,
 not an approval mechanism. Clients must enforce approvals themselves, and DataLens
 continues to enforce the user's permissions for every API call.
-
-Deploy an OpenAPI schema with scope classifications before adopting this release.
 
 ## Setup
 
@@ -54,12 +48,9 @@ separate install or build step.
 `--prefer-online` asks npm to revalidate cached package metadata. It does not
 upgrade an already running MCP process; restart the server to pick up updates.
 
-Once a client connects, the server checks npm's `latest` version in the background.
-If a newer stable package is available, it warns on stderr and appends a separate
-text notice to command tool responses without changing their API result block.
-The check sends no DataLens credentials, is bounded to two seconds and 64 KiB of
-decoded metadata, and never blocks command execution. Registry failures are
-ignored. The server neither installs updates nor stops older versions from working.
+The server checks npm for updates in the background and notifies you when a newer
+stable version is available. Update the package yourself and restart the MCP server
+to use the new version.
 
 ### Via a global install
 
@@ -106,8 +97,7 @@ allowed for `localhost`, `127.0.0.1`, and `[::1]` endpoints only when
 
 Response bodies are limited before JSON parsing: 10 MiB for API calls and 20 MiB
 for OpenAPI, measured after decompression. The 30-second request timeout includes
-reading the body. OpenAPI documents are limited to a depth of 100 and 100,000 nodes.
-Bundling command input schemas has a shared budget of 1,000,000 nodes.
+reading the body.
 `DATALENS_MAX_RESPONSE_CHARS` remains a separate limit on API data and error details
 sent to the agent.
 

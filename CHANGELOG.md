@@ -17,6 +17,13 @@
 - Exclude operations without a supported `x-mcp-scope` and include scope and
   invocation tool names in command discovery results.
 
+### Upgrading
+
+- Before upgrading to 0.2.0, update DataLens to provide an OpenAPI schema with
+  `x-mcp-scope` classifications. The MCP server cannot start without classified commands.
+- Update client approval policies to use `invoke_read_command`, `invoke_write_command`,
+  and `invoke_privileged_command` instead of the removed `invoke_command` tool.
+
 ### Added
 
 - Notify clients about newer stable npm releases without blocking commands or
