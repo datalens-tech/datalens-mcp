@@ -2,6 +2,10 @@
 
 [Back to README](../README.md)
 
+Choose the MCP version supported by your installed DataLens Enterprise release
+and pin that exact version in the client configuration. The example below uses
+MCP `0.3.0`; replace it with the version supported by your Enterprise release.
+
 Set your API URL and key file path in your MCP client's server configuration
 as shown below.
 
@@ -14,7 +18,7 @@ file. Use the downloaded file in the configuration below:
   "mcpServers": {
     "datalens-enterprise": {
       "command": "npx",
-      "args": ["-y", "--prefer-online", "@datalens-tech/mcp@latest"],
+      "args": ["-y", "@datalens-tech/mcp@0.3.0"],
       "env": {
         "DATALENS_INSTALLATION": "enterprise",
         "DATALENS_API_URL": "https://datalens.example.com",
@@ -50,7 +54,15 @@ exchanges; an already issued access token may remain valid until expiration.
 For installations using a corporate CA, set `NODE_EXTRA_CA_CERTS` to the CA PEM
 file in the MCP server's environment before launching it. TLS verification remains enabled.
 
-For a global installation, see [Run](../README.md#via-a-global-install).
+For a global installation, install the same pinned version:
+
+```bash
+npm install -g @datalens-tech/mcp@0.3.0
+```
+
+Set `command` to `datalens-mcp` and remove `args` from the client configuration
+above. Keep the `env` settings. When upgrading MCP, choose a version supported
+by your Enterprise release.
 
 ## Configuration
 
