@@ -1,4 +1,4 @@
-# Enterprise setup (native authentication)
+# Enterprise setup
 
 [Back to README](../README.md)
 
@@ -40,7 +40,7 @@ If `DATALENS_API_VERSION` is pinned, its versioned schema is selected automatica
 keep its API version consistent with `DATALENS_API_VERSION`.
 
 To use a static token instead, omit `DATALENS_SERVICE_ACCOUNT_KEY_FILE` and set
-`DATALENS_API_AUTH_HEADER="Bearer <native-access-token>"`. Exactly one credential
+`DATALENS_API_AUTH_HEADER="Bearer <access-token>"`. Exactly one credential
 source is required. Static tokens are not renewed; restart the server after
 updating them.
 
@@ -56,7 +56,7 @@ For a global installation, see [Run](../README.md#via-a-global-install).
 
 | Variable                            | Default                | Purpose                                                |
 | ----------------------------------- | ---------------------- | ------------------------------------------------------ |
-| `DATALENS_INSTALLATION`             | Required: `enterprise` | Selects native Enterprise authentication.              |
+| `DATALENS_INSTALLATION`             | Required: `enterprise` | Selects Enterprise authentication.                     |
 | `DATALENS_API_URL`                  | Required               | Installation base URL.                                 |
 | `DATALENS_SERVICE_ACCOUNT_KEY_FILE` | —                      | Path to the downloaded JSON key.                       |
 | `DATALENS_API_AUTH_HEADER`          | —                      | Static `Bearer <access-token>` alternative to the key. |

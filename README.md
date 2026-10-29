@@ -36,11 +36,11 @@ Deploy an OpenAPI schema with scope classifications before adopting this release
 
 Choose the guide for your DataLens installation:
 
-| Installation                       | Guide                                  |
-| ---------------------------------- | -------------------------------------- |
-| Yandex Cloud                       | [Cloud setup](docs/cloud.md)           |
-| Internal                           | [Internal setup](docs/internal.md)     |
-| Enterprise (native authentication) | [Enterprise setup](docs/enterprise.md) |
+| Installation | Guide                                  |
+| ------------ | -------------------------------------- |
+| Yandex Cloud | [Cloud setup](docs/cloud.md)           |
+| Internal     | [Internal setup](docs/internal.md)     |
+| Enterprise   | [Enterprise setup](docs/enterprise.md) |
 
 Each guide covers authorization, required variables, and a complete MCP client
 configuration. The server speaks MCP over stdio. Set environment variables in your

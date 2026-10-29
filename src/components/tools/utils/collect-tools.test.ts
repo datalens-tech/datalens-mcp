@@ -52,7 +52,7 @@ describe('collectTools', () => {
             {
                 ...config,
                 installation: INSTALLATION.ENTERPRISE,
-                auth: {type: 'static', header: 'Bearer native'},
+                auth: {type: 'static', header: 'Bearer enterprise-token'},
             },
         ];
         for (const installationConfig of configurations) {
