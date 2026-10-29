@@ -2,4 +2,3 @@ node_modules/
 dist/
 *.js.map
 .env
-/sa-key
