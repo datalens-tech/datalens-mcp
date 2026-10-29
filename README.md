@@ -48,8 +48,9 @@ separate install or build step.
 `--prefer-online` asks npm to revalidate cached package metadata. It does not
 upgrade an already running MCP process; restart the server to pick up updates.
 
-The server checks npm for updates in the background and notifies you when a newer
-stable version is available. Update the package yourself and restart the MCP server
+For Cloud and Internal installations, the server checks npm for updates in the
+background and notifies you when a newer stable version is available.
+Update the package yourself and restart the MCP server
 to use the new version.
 
 ### Via a global install

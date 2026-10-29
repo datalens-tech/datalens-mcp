@@ -1,7 +1,7 @@
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 
 import {createAuthProvider} from './components/auth';
-import {loadConfig} from './components/config';
+import {INSTALLATION, loadConfig} from './components/config';
 import {fetchOpenAPISpec} from './components/openapi';
 import {collectTools, registerTools} from './components/tools';
 import {checkForUpdate, getPackageVersion} from './utils';
@@ -31,6 +31,7 @@ export const createApp = async (): Promise<Server> => {
     let updateCheckStarted = false;
     const updateController = new AbortController();
     server.oninitialized = () => {
+        if (config.installation === INSTALLATION.ENTERPRISE) return;
         if (updateCheckStarted || updateController.signal.aborted) return;
         updateCheckStarted = true;
         const timer = setTimeout(() => updateController.abort(), UPDATE_CHECK_TIMEOUT_MS);

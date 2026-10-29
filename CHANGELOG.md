@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Disable npm update checks and notices for Enterprise installations.
 - Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
 
 ## 0.2.1
