@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- Support DataLens Enterprise installations with service account JSON keys,
+  automatic access token renewal, or a static Bearer token.
+- Add separate setup guides for Cloud, Internal and Enterprise installations
+  and include them in the npm package.
+
+### Changed
+
+- Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
+- Rename `.env.example` to `.env.cloud.example` and add `.env.enterprise.example`.
+
 ## 0.2.1
 
 ### Added
