@@ -54,12 +54,14 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "dotenv": "^17.4.2",
+    "jsonwebtoken": "^9.0.3",
     "semver": "^7.8.5"
   },
   "devDependencies": {
     "@gravity-ui/eslint-config": "^4.3.1",
     "@gravity-ui/prettier-config": "^1.1.1",
     "@gravity-ui/tsconfig": "^1.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.41",
     "@types/semver": "^7.8.0",
     "eslint": "^9.39.4",

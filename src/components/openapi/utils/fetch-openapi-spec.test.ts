@@ -1,11 +1,13 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import type {AppConfig} from '../../config';
+import {INSTALLATION} from '../../config';
 
 import {fetchOpenAPISpec} from './fetch-openapi-spec';
 
 const config: AppConfig = {
-    installation: 'internal',
+    installation: INSTALLATION.INTERNAL,
+    auth: {type: 'static'},
     apiUrl: 'https://api.example.com',
     schemaUrl: 'https://schema.example.com/3/json/?token=secret-query#secret-fragment',
     apiVersion: 'latest',

@@ -32,81 +32,24 @@ continues to enforce the user's permissions for every API call.
 
 Deploy an OpenAPI schema with scope classifications before adopting this release.
 
-## Authorization
+## Setup
 
-### Setup in Yandex Cloud (recommended)
+Choose the guide for your DataLens installation:
 
-> **Prerequisite:** the [`yc` CLI](https://yandex.cloud/docs/cli/quickstart)
-> **must be installed and configured.** Install it, then run `yc init` to log in
-> and select your cloud and folder.
+| Installation                       | Guide                                  |
+| ---------------------------------- | -------------------------------------- |
+| Yandex Cloud                       | [Cloud setup](docs/cloud.md)           |
+| Internal                           | [Internal setup](docs/internal.md)     |
+| Enterprise (native authentication) | [Enterprise setup](docs/enterprise.md) |
 
-That's the whole setup. The server runs `yc iam create-token` to obtain an IAM
-token and sends it as `Authorization: Bearer <token>`. The token is fetched
-lazily on the first request and re-fetched only once it is about to expire.
-
-Once `yc` works, you only need one environment variable — your organization id:
-
-```
-DATALENS_ORG_ID=<org-id>
-```
-
-Optional `yc` tweaks:
-
-- `DATALENS_YC_PROFILE` — use a specific `yc` profile instead of the active one.
-- `DATALENS_YC_BIN` — full path to the `yc` binary if it isn't on `PATH`.
-
-### Alternative: static token
-
-If you can't run `yc` (e.g. in a sandboxed environment), you can manage the IAM
-token yourself: set `DATALENS_YC_STATIC_AUTH=1` and put the token in
-`DATALENS_API_AUTH_HEADER`. The value is sent as-is on every request and `yc` is
-never called.
-
-```
-DATALENS_YC_STATIC_AUTH=1
-DATALENS_API_AUTH_HEADER="Bearer <iam-token>"
-```
-
-> **Note:** IAM tokens expire after 12 hours. With this approach you are
-> responsible for refreshing `DATALENS_API_AUTH_HEADER` and restarting the server
-> before the token expires.
-
-### Internal installation
-
-For an internal DataLens installation, set the installation type, API URL and OAuth token:
-
-```bash
-DATALENS_INSTALLATION=internal
-DATALENS_API_URL=https://datalens.example.com
-DATALENS_OAUTH_TOKEN=<oauth-token>
-```
-
-The token is sent as `Authorization: OAuth <oauth-token>`. For backward compatibility,
-`DATALENS_API_AUTH_HEADER` is still supported as a complete Authorization header value.
-When both variables are set, `DATALENS_OAUTH_TOKEN` takes precedence.
+Each guide covers authorization, required variables, and a complete MCP client
+configuration. The server speaks MCP over stdio. Set environment variables in your
+client's server configuration.
 
 ## Run
 
-The server speaks MCP over stdio. Add it to your MCP client config in one of the
-ways below.
-
-### Via `npx` (recommended)
-
-No install or build step — `npx` fetches the published package on demand:
-
-```json
-{
-  "mcpServers": {
-    "datalens": {
-      "command": "npx",
-      "args": ["-y", "--prefer-online", "@datalens-tech/mcp@latest"],
-      "env": {
-        "DATALENS_ORG_ID": "<org-id>"
-      }
-    }
-  }
-}
-```
+The setup guides use `npx` to fetch the published package on demand, without a
+separate install or build step.
 
 `--prefer-online` asks npm to revalidate cached package metadata. It does not
 upgrade an already running MCP process; restart the server to pick up updates.
@@ -120,68 +63,40 @@ ignored. The server neither installs updates nor stops older versions from worki
 
 ### Via a global install
 
-Install the package once, then reference the `datalens-mcp` command:
-
 ```bash
 npm install -g @datalens-tech/mcp
 ```
 
-```json
-{
-  "mcpServers": {
-    "datalens": {
-      "command": "datalens-mcp",
-      "env": {
-        "DATALENS_ORG_ID": "<org-id>"
-      }
-    }
-  }
-}
-```
+In the MCP client configuration from your installation guide, set `command` to
+`datalens-mcp`, remove `args`, and keep the guide's `env` settings.
 
 ### From a local build
-
-Use this if you've cloned the repo. **Build it
-first:**
 
 ```bash
 npm ci
 npm run build
 ```
 
-Then point your client at the built file:
-
-```json
-{
-  "mcpServers": {
-    "datalens": {
-      "command": "node",
-      "args": ["/absolute/path/to/datalens-mcp/dist/index.js"],
-      "env": {
-        "DATALENS_ORG_ID": "<org-id>"
-      }
-    }
-  }
-}
-```
+In the MCP client configuration from your installation guide, set `command` to
+`node` and `args` to `["/absolute/path/to/datalens-mcp/dist/index.js"]`.
+Keep the guide's `env` settings.
 
 ## Configuration reference
 
-All configuration is via environment variables (see [.env.example](.env.example)):
+Installation-specific credentials and defaults are documented in the
+[Cloud](docs/cloud.md#configuration), [Internal](docs/internal.md#configuration),
+and [Enterprise](docs/enterprise.md#configuration) guides.
 
-| Variable                      | Required | Default                            | Description                                                                                                    |
-| ----------------------------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `DATALENS_ORG_ID`             | Cloud    | —                                  | Organization id, sent in the `x-dl-org-id` header.                                                             |
-| `DATALENS_INSTALLATION`       |          | `cloud`                            | Installation type: `cloud` or `internal`.                                                                      |
-| `DATALENS_API_URL`            | Internal | Cloud: `https://api.datalens.tech` | Base URL of the DataLens API.                                                                                  |
-| `DATALENS_OAUTH_TOKEN`        |          | —                                  | OAuth token for an internal installation. Takes precedence over `DATALENS_API_AUTH_HEADER`.                    |
-| `DATALENS_YC_STATIC_AUTH`     |          | —                                  | Set to `1` or `true` to use `DATALENS_API_AUTH_HEADER` instead of the `yc` CLI.                                |
-| `DATALENS_API_AUTH_HEADER`    |          | —                                  | Complete static `Authorization` header. Used as an internal fallback or when `DATALENS_YC_STATIC_AUTH` is set. |
-| `DATALENS_YC_PROFILE`         |          | —                                  | `yc` profile name (`yc ... --profile <name>`). Defaults to the active profile.                                 |
-| `DATALENS_YC_BIN`             |          | `yc`                               | Path to the `yc` binary.                                                                                       |
-| `DATALENS_SCHEMA_URL`         |          | `{DATALENS_API_URL}/json/`         | URL of the OpenAPI JSON spec.                                                                                  |
-| `DATALENS_API_VERSION`        |          | `latest`                           | Sent in the `x-dl-api-version` header.                                                                         |
-| `DATALENS_MAX_RESPONSE_CHARS` |          | `100000`                           | Responses longer than this are truncated before reaching the client.                                           |
+These settings apply to every installation:
+
+| Variable                      | Default                                   | Purpose                                                                            |
+| ----------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| `DATALENS_SCHEMA_URL`         | Derived from the installation and API URL | Overrides the OpenAPI JSON URL.                                                    |
+| `DATALENS_API_VERSION`        | `latest`                                  | Sent in the `x-dl-api-version` header. Keep the schema version consistent with it. |
+| `DATALENS_MAX_RESPONSE_CHARS` | `100000`                                  | Truncates responses before forwarding them to the client.                          |
+
+`DATALENS_INSTALLATION` defaults to `cloud`; supported values are `cloud`,
+`internal`, and `enterprise`. Unknown values are rejected.
 
 ## Security boundaries
 

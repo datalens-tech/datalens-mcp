@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
-import {loadConfig} from './utils';
+import {INSTALLATION} from './constants';
+import {loadConfig} from './load-config';
 
 describe('loadConfig', () => {
     const ENV_KEYS = [
@@ -15,6 +16,7 @@ describe('loadConfig', () => {
         'DATALENS_YC_STATIC_AUTH',
         'DATALENS_YC_PROFILE',
         'DATALENS_YC_BIN',
+        'DATALENS_SERVICE_ACCOUNT_KEY_FILE',
     ];
     let saved: Record<string, string | undefined>;
 
@@ -73,12 +75,13 @@ describe('loadConfig', () => {
 
         expect(config.schemaUrl).toBe('https://api.example.com/json/');
         expect(config.apiVersion).toBe('latest');
-        expect(config.authHeader).toBeUndefined();
+        expect(config.auth).not.toHaveProperty('header');
         expect(config.maxResponseChars).toBe(100_000);
         // defaults to the cloud installation (IAM token via yc)
         expect(config.installation).toBe('cloud');
-        expect(config.orgId).toBe('org1');
-        expect(config.ycIam).toEqual({
+        expect(config).toHaveProperty('orgId', 'org1');
+        expect(config.auth).toEqual({
+            type: 'yc-iam',
             profile: undefined,
             bin: 'yc',
         });
@@ -95,12 +98,13 @@ describe('loadConfig', () => {
         process.env.DATALENS_SCHEMA_URL = 'https://schema.example/spec.json';
         process.env.DATALENS_API_VERSION = '1.2.3';
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
+        process.env.DATALENS_YC_STATIC_AUTH = 'true';
         process.env.DATALENS_MAX_RESPONSE_CHARS = '500';
         const config = loadConfig();
 
         expect(config.schemaUrl).toBe('https://schema.example/spec.json');
         expect(config.apiVersion).toBe('1.2.3');
-        expect(config.authHeader).toBe('Bearer token');
+        expect(config.auth).toEqual({type: 'static', header: 'Bearer token'});
         expect(config.maxResponseChars).toBe(500);
     });
 
@@ -122,8 +126,8 @@ describe('loadConfig', () => {
         const config = loadConfig();
 
         expect(config.installation).toBe('internal');
-        expect(config.ycIam).toBeUndefined();
-        expect(config.authHeader).toBe('Bearer token');
+        expect(config.auth.type).toBe('static');
+        expect(config.auth).toEqual({type: 'static', header: 'Bearer token'});
     });
 
     it('uses DATALENS_OAUTH_TOKEN for the internal installation', () => {
@@ -131,7 +135,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_INSTALLATION = 'internal';
         process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
 
-        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+        expect(loadConfig().auth).toEqual({type: 'static', header: 'OAuth oauth-token'});
     });
 
     it('prefers DATALENS_OAUTH_TOKEN to DATALENS_API_AUTH_HEADER internally', () => {
@@ -140,7 +144,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_OAUTH_TOKEN = 'oauth-token';
         process.env.DATALENS_API_AUTH_HEADER = 'Legacy header';
 
-        expect(loadConfig().authHeader).toBe('OAuth oauth-token');
+        expect(loadConfig().auth).toEqual({type: 'static', header: 'OAuth oauth-token'});
     });
 
     it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=true', () => {
@@ -152,8 +156,8 @@ describe('loadConfig', () => {
         const config = loadConfig();
 
         expect(config.installation).toBe('cloud');
-        expect(config.authHeader).toBe('Bearer static-token');
-        expect(config.ycIam).toBeUndefined();
+        expect(config.auth).toEqual({type: 'static', header: 'Bearer static-token'});
+        expect(config.auth.type).toBe('static');
     });
 
     it('uses a static auth header on cloud when DATALENS_YC_STATIC_AUTH=1', () => {
@@ -163,7 +167,7 @@ describe('loadConfig', () => {
         process.env.DATALENS_API_AUTH_HEADER = 'Bearer static-token';
         const config = loadConfig();
 
-        expect(config.ycIam).toBeUndefined();
+        expect(config.auth.type).toBe('static');
     });
 
     it('honours ycIam overrides on the cloud installation', () => {
@@ -172,9 +176,109 @@ describe('loadConfig', () => {
         process.env.DATALENS_INSTALLATION = 'cloud';
         process.env.DATALENS_YC_PROFILE = 'prod';
         process.env.DATALENS_YC_BIN = '/usr/local/bin/yc';
-        expect(loadConfig().ycIam).toEqual({
+        expect(loadConfig().auth).toEqual({
+            type: 'yc-iam',
             profile: 'prod',
             bin: '/usr/local/bin/yc',
         });
+    });
+
+    it('rejects unknown installations', () => {
+        process.env.DATALENS_INSTALLATION = 'enterprize';
+        expect(() => loadConfig()).toThrow('DATALENS_INSTALLATION');
+    });
+
+    it.each(['cloud', 'internal', 'enterprise'])(
+        'keeps only settings applicable to the %s installation',
+        (installation) => {
+            process.env.DATALENS_INSTALLATION = installation;
+            process.env.DATALENS_API_URL = 'https://api.example.com';
+            process.env.DATALENS_ORG_ID = 'org1';
+            process.env.DATALENS_OAUTH_TOKEN = 'internal-token';
+            process.env.DATALENS_YC_PROFILE = 'cloud-profile';
+            process.env.DATALENS_SERVICE_ACCOUNT_KEY_FILE = '/keys/enterprise.json';
+            const config = loadConfig();
+
+            expect(config).not.toHaveProperty('authHeader');
+            expect(config).not.toHaveProperty('ycIam');
+            expect(config).not.toHaveProperty('serviceAccountKeyFile');
+            switch (config.installation) {
+                case INSTALLATION.CLOUD:
+                    expect(config.orgId).toBe('org1');
+                    expect(config.auth).toEqual({
+                        type: 'yc-iam',
+                        profile: 'cloud-profile',
+                        bin: 'yc',
+                    });
+                    break;
+                case INSTALLATION.INTERNAL:
+                    expect(config).not.toHaveProperty('orgId');
+                    expect(config.auth).toEqual({type: 'static', header: 'OAuth internal-token'});
+                    break;
+                case INSTALLATION.ENTERPRISE:
+                    expect(config).not.toHaveProperty('orgId');
+                    expect(config.auth).toEqual({
+                        type: 'service-account',
+                        keyFile: '/keys/enterprise.json',
+                    });
+                    break;
+            }
+        },
+    );
+
+    it('does not keep a static header when cloud CLI auth is selected', () => {
+        process.env.DATALENS_ORG_ID = 'org1';
+        process.env.DATALENS_API_AUTH_HEADER = 'Bearer unused';
+        expect(loadConfig().auth).toEqual({type: 'yc-iam', profile: undefined, bin: 'yc'});
+    });
+
+    describe('enterprise', () => {
+        beforeEach(() => {
+            process.env.DATALENS_INSTALLATION = 'enterprise';
+            process.env.DATALENS_API_URL = 'https://datalens.example.com';
+            process.env.DATALENS_SERVICE_ACCOUNT_KEY_FILE = '/keys/sa.json';
+        });
+
+        it('uses the enterprise schema and key without cloud settings', () => {
+            process.env.DATALENS_OAUTH_TOKEN = 'ignored';
+            process.env.DATALENS_ORG_ID = 'ignored';
+            expect(loadConfig()).toMatchObject({
+                installation: INSTALLATION.ENTERPRISE,
+                schemaUrl: 'https://datalens.example.com/api/docs/swagger/json/',
+                auth: {type: 'service-account', keyFile: '/keys/sa.json'},
+            });
+        });
+
+        it('matches schema and RPC versions and honours the schema override', () => {
+            process.env.DATALENS_API_VERSION = '2';
+            expect(loadConfig().schemaUrl).toBe(
+                'https://datalens.example.com/api/docs/swagger/2/json/',
+            );
+            process.env.DATALENS_SCHEMA_URL = 'https://schema.example.com/spec.json';
+            expect(loadConfig().schemaUrl).toBe(process.env.DATALENS_SCHEMA_URL);
+        });
+
+        it('requires an API URL', () => {
+            delete process.env.DATALENS_API_URL;
+            expect(() => loadConfig()).toThrow('DATALENS_API_URL');
+        });
+
+        it('requires exactly one credential source', () => {
+            process.env.DATALENS_API_AUTH_HEADER = 'Bearer token';
+            expect(() => loadConfig()).toThrow('exactly one');
+            delete process.env.DATALENS_SERVICE_ACCOUNT_KEY_FILE;
+            expect(loadConfig().auth).toEqual({type: 'static', header: 'Bearer token'});
+            delete process.env.DATALENS_API_AUTH_HEADER;
+            expect(() => loadConfig()).toThrow('exactly one');
+        });
+
+        it.each(['OAuth secret', 'Bearer ', 'Bearer token\nextra'])(
+            'rejects invalid static auth',
+            (header) => {
+                delete process.env.DATALENS_SERVICE_ACCOUNT_KEY_FILE;
+                process.env.DATALENS_API_AUTH_HEADER = header;
+                expect(() => loadConfig()).toThrow('Bearer');
+            },
+        );
     });
 });

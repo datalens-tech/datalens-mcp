@@ -5,7 +5,10 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {createApp} from './app';
 import {getPackageVersion} from './utils';
 
-vi.mock('./components/config', () => ({loadConfig: () => ({maxResponseChars: 1000})}));
+vi.mock('./components/config', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('./components/config')>()),
+    loadConfig: () => ({maxResponseChars: 1000}),
+}));
 vi.mock('./components/auth', () => ({
     createAuthProvider: async () => ({getAuthHeader: () => undefined}),
 }));

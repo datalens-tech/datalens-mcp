@@ -1,33 +1,26 @@
-/** Settings for obtaining an IAM token via the Yandex Cloud `yc` CLI */
-export type YcIamConfig = {
-    /** `yc` profile name passed as `--profile <name>` (uses the active profile when omitted) */
-    profile?: string;
-    /** Path to the `yc` binary */
-    bin: string;
-};
+import type {CloudConfig} from './installations/cloud';
+import type {EnterpriseConfig} from './installations/enterprise';
+import type {InternalConfig} from './installations/internal';
 
-/**
- * DataLens installation type, decides how requests are authorized:
- * - `cloud` (default): Authorization is an IAM token fetched via the `yc` CLI.
- * - `internal`: Authorization is taken from DATALENS_OAUTH_TOKEN or DATALENS_API_AUTH_HEADER.
- */
-export type Installation = 'cloud' | 'internal';
+export type {CloudConfig, YcIamConfig} from './installations/cloud';
+export type {EnterpriseConfig, ServiceAccountAuthConfig} from './installations/enterprise';
+export type {InternalConfig} from './installations/internal';
 
-export type AppConfig = {
-    /** Base URL of the DataLens public API */
+export type CommonConfig = {
+    /** Base URL of the DataLens public API. */
     apiUrl: string;
-    /** Installation type that selects the authorization strategy */
-    installation: Installation;
-    /** Organization id sent in the x-dl-org-id header (required for the `cloud` installation) */
-    orgId?: string;
-    /** Authorization header on every API request */
-    authHeader?: string;
-    /** IAM-token settings, present when installation is `cloud` */
-    ycIam?: YcIamConfig;
-    /** Full URL of the OpenAPI JSON spec endpoint */
+    /** Full URL of the OpenAPI JSON spec. */
     schemaUrl: string;
-    /** Value for the x-dl-api-version header */
+    /** Value for the x-dl-api-version header. */
     apiVersion: string;
-    /** Max characters of a command response forwarded to the client before truncation */
+    /** Maximum response characters forwarded to the MCP client. */
     maxResponseChars: number;
 };
+
+export type StaticAuthConfig = {
+    type: 'static';
+    header?: string;
+};
+
+export type AppConfig = CloudConfig | InternalConfig | EnterpriseConfig;
+export type Installation = AppConfig['installation'];
