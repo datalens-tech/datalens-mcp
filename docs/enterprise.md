@@ -5,7 +5,6 @@
 Choose the MCP version supported by your installed DataLens Enterprise release
 and pin that exact version in the client configuration. The example below uses
 MCP `0.3.0`; replace it with the version supported by your Enterprise release.
-Update checks are disabled for Enterprise installations.
 
 Set your API URL and key file path in your MCP client's server configuration
 as shown below.
