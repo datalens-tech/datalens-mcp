@@ -12,7 +12,6 @@
 ### Changed
 
 - Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
-- Rename `.env.example` to `.env.cloud.example` and add `.env.enterprise.example`.
 
 ## 0.2.1
 
