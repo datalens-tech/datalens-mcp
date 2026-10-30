@@ -1,18 +1,49 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import type {AppConfig} from '../../../config';
+import {INSTALLATION} from '../../../config';
 import type {OpenAPISpec} from '../../../openapi';
 import {collectTools} from '../collect-tools';
 
 const config: AppConfig = {
     apiUrl: 'https://api.example.com',
     installation: 'internal',
+    auth: {type: 'static'},
     schemaUrl: 'https://api.example.com/json/',
     apiVersion: 'latest',
     maxResponseChars: 100_000,
 };
 
 describe('collectTools', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('adds the organization header only for a cloud configuration', async () => {
+        const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response('{}')));
+        vi.stubGlobal('fetch', fetchMock);
+        const configurations: AppConfig[] = [
+            {...config, installation: INSTALLATION.CLOUD, orgId: 'org1'},
+            config,
+            {
+                ...config,
+                installation: INSTALLATION.ENTERPRISE,
+                auth: {type: 'static', header: 'Bearer enterprise-token'},
+            },
+        ];
+        for (const installationConfig of configurations) {
+            const [tool] = collectTools(
+                {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
+                installationConfig,
+            );
+            await tool.invoke({});
+            const headers = fetchMock.mock.lastCall![1].headers;
+            if (installationConfig.installation === INSTALLATION.CLOUD) {
+                expect(headers['x-dl-org-id']).toBe('org1');
+            } else {
+                expect(headers).not.toHaveProperty('x-dl-org-id');
+            }
+        }
+    });
+
     it.each(['read', 'write', 'privileged'] as const)(
         'collects an operation with scope %s',
         (scope) => {

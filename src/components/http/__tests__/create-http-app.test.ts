@@ -193,9 +193,14 @@ describe('HTTP installation', () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
         try {
-            await expect(createHttpApp({...httpConfig, installation: 'cloud'})).rejects.toThrow(
-                'internal',
-            );
+            await expect(
+                createHttpApp({
+                    ...httpConfig,
+                    installation: 'cloud',
+                    orgId: 'org1',
+                    auth: {type: 'static'},
+                }),
+            ).rejects.toThrow('internal');
             expect(fetchMock).not.toHaveBeenCalled();
         } finally {
             vi.unstubAllGlobals();

@@ -7,18 +7,16 @@ import {testConfig} from '../../../__tests__/helpers/config';
 import {listenHttp} from '../../../__tests__/helpers/http';
 import {createClient} from '../../../__tests__/helpers/mcp';
 import type {ProtocolEra} from '../../../__tests__/helpers/mcp';
-import type {StdioConfig} from '../../stdio/config';
 import type {HttpConfig} from '../config';
 import {createHttpApp} from '../create-http-app';
 
 export const nativeFetch = globalThis.fetch;
 
 // Server-side credentials must never be used by HTTP clients.
-export const httpConfig: HttpConfig & StdioConfig = {
+export const httpConfig: HttpConfig = {
     ...testConfig,
     port: 3000,
-    authHeader: 'OAuth server-secret',
-    ycIam: {bin: 'must-not-be-executed'},
+    auth: {type: 'static', header: 'OAuth server-secret'},
 };
 
 const spec = {

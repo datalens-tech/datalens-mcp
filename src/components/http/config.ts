@@ -1,4 +1,4 @@
-import {INSTALLATION, loadConfigCommon} from '../config';
+import {INSTALLATION, loadConfig} from '../config';
 import type {AppConfig} from '../config';
 
 import {DEFAULT_HTTP_PORT, MAX_HTTP_PORT} from './constants';
@@ -11,7 +11,7 @@ export const loadHttpConfig = (): HttpConfig => {
     if (process.env.DATALENS_INSTALLATION?.trim().toLowerCase() !== INSTALLATION.INTERNAL) {
         throw new Error('HTTP transport requires DATALENS_INSTALLATION=internal');
     }
-    const config = loadConfigCommon();
+    const config = loadConfig();
 
     const rawPort = process.env.MCP_PORT ?? String(DEFAULT_HTTP_PORT);
     const port = Number(rawPort);

@@ -1,6 +1,7 @@
 export const INSTALLATION = {
     CLOUD: 'cloud',
     INTERNAL: 'internal',
+    ENTERPRISE: 'enterprise',
 } as const;
 
 export const MCP_TRANSPORT = {

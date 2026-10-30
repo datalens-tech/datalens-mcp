@@ -4,6 +4,7 @@ import type {AppConfig} from '../../components/config';
 
 export const testConfig: AppConfig = {
     installation: 'internal',
+    auth: {type: 'static'},
     apiUrl: 'https://api.example.com',
     schemaUrl: 'https://api.example.com/json/',
     apiVersion: 'latest',

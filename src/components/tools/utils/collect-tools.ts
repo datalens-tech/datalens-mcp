@@ -5,6 +5,7 @@ import {
     validateHttpsUrl,
     withRequestTimeout,
 } from '../../../utils';
+import {INSTALLATION} from '../../config';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
 import {OPENAPI_EXTENSION, bundleRefs, isMcpScope} from '../../openapi';
@@ -28,7 +29,7 @@ const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
         [HTTP_HEADER.CONTENT_TYPE]: CONTENT_TYPE.JSON,
         [HTTP_HEADER.DATALENS_API_VERSION]: config.apiVersion,
     };
-    if (config.orgId) {
+    if (config.installation === INSTALLATION.CLOUD) {
         headers[HTTP_HEADER.DATALENS_ORG_ID] = config.orgId;
     }
     return headers;

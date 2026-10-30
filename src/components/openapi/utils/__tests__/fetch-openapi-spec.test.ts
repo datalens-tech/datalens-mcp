@@ -5,6 +5,7 @@ import {fetchOpenAPISpec} from '../fetch-openapi-spec';
 
 const config: AppConfig = {
     installation: 'internal',
+    auth: {type: 'static'},
     apiUrl: 'https://api.example.com',
     schemaUrl: 'https://schema.example.com/3/json/?token=secret-query#secret-fragment',
     apiVersion: 'latest',

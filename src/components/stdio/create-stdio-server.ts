@@ -1,6 +1,7 @@
 import type {Server} from '@modelcontextprotocol/server';
 
 import {getPackageVersion} from '../../utils';
+import {INSTALLATION} from '../config';
 import {createMcpServer} from '../mcp';
 import {loadTools} from '../tools';
 
@@ -24,6 +25,8 @@ export const createStdioServer = async (): Promise<Server> => {
         maxResponseChars: config.maxResponseChars,
         getUpdateNotice: () => updateNotice,
     });
+    if (config.installation === INSTALLATION.ENTERPRISE) return server;
+
     const updateController = new AbortController();
     server.onclose = () => updateController.abort();
 

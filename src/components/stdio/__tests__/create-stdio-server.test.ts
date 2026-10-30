@@ -1,13 +1,16 @@
 import {InMemoryTransport} from '@modelcontextprotocol/client';
 import {serveStdio} from '@modelcontextprotocol/server/stdio';
-import {afterEach, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 
 import {createClient} from '../../../__tests__/helpers/mcp';
 import type {ProtocolEra} from '../../../__tests__/helpers/mcp';
 import {getPackageVersion} from '../../../utils';
+import {INSTALLATION} from '../../config';
 import {createStdioServer} from '../create-stdio-server';
 
-vi.mock('../config', () => ({loadStdioConfig: () => ({maxResponseChars: 1000})}));
+const {loadStdioConfigMock} = vi.hoisted(() => ({loadStdioConfigMock: vi.fn()}));
+
+vi.mock('../config', () => ({loadStdioConfig: loadStdioConfigMock}));
 vi.mock('../auth', () => ({createAuthProvider: async () => ({getAuthHeader: () => undefined})}));
 vi.mock('../../openapi', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../openapi')>()),
@@ -40,6 +43,13 @@ const connect = async (era: ProtocolEra) => {
 };
 
 describe('stdio update checks', () => {
+    beforeEach(() => {
+        loadStdioConfigMock.mockReturnValue({
+            installation: INSTALLATION.CLOUD,
+            maxResponseChars: 1000,
+        });
+    });
+
     afterEach(() => {
         vi.unstubAllGlobals();
         vi.useRealTimers();
@@ -60,6 +70,25 @@ describe('stdio update checks', () => {
     });
 
     describe.each(['legacy', 'modern'] as const)('%s client', (era) => {
+        it('does not contact npm or emit update notices for Enterprise', async () => {
+            loadStdioConfigMock.mockReturnValue({
+                installation: INSTALLATION.ENTERPRISE,
+                maxResponseChars: 1000,
+            });
+            const fetch = vi.fn().mockResolvedValue(new Response('{"version":"999.0.0"}'));
+            vi.stubGlobal('fetch', fetch);
+            const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+            onTestFinished(() => errorLog.mockRestore());
+
+            const {client} = await connect(era);
+            const result = await client.callTool({name: 'list_commands'});
+
+            expect(result.isError).not.toBe(true);
+            expect(result.content).toHaveLength(1);
+            expect(fetch).not.toHaveBeenCalled();
+            expect(errorLog).not.toHaveBeenCalled();
+        });
+
         it('aborts a slow update check after two seconds and keeps serving tools', async () => {
             vi.useFakeTimers();
             const fetch = mockPendingUpdate();
