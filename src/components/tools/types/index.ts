@@ -8,5 +8,5 @@ export type CollectedTool = {
     /** Body schema with $refs inlined — shown to the LLM via describe_commands */
     rawInputSchema: Record<string, unknown>;
     /** Executes the API call; receives parameters from a scoped invocation tool */
-    invoke: (args: Record<string, unknown>) => Promise<unknown>;
+    invoke: (args: Record<string, unknown>, authHeader?: string) => Promise<unknown>;
 };

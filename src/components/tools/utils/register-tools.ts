@@ -1,8 +1,9 @@
-import type {Server} from '@modelcontextprotocol/sdk/server/index.js';
-import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import type {Server, ServerContext} from '@modelcontextprotocol/server';
 
 import {truncateText} from '../../../utils';
+import type {AuthProvider} from '../../auth';
 import type {McpScope} from '../../openapi';
+import {MCP_SCOPE} from '../../openapi';
 import {INVOKE_TOOL_BY_SCOPE, TOOL_DEFS, TOOL_NAME} from '../constants';
 import type {CollectedTool} from '../types';
 
@@ -62,6 +63,8 @@ const handleInvokeCommand = async (
     toolsByName: Map<string, CollectedTool>,
     maxResponseChars: number,
     scope: McpScope,
+    ctx: ServerContext,
+    authProvider?: AuthProvider,
 ): Promise<ToolResult> => {
     const commandName = args['command_name'];
     if (typeof commandName !== 'string' || !commandName) {
@@ -80,7 +83,8 @@ const handleInvokeCommand = async (
     const parameters = (args['parameters'] ?? {}) as Args;
 
     try {
-        const data = await tool.invoke(parameters);
+        const authHeader = await authProvider?.getAuthHeader(ctx.http?.req);
+        const data = await tool.invoke(parameters, authHeader);
         return toToolResult({
             trust: 'untrusted_data',
             data: truncateText(
@@ -99,18 +103,20 @@ export const registerTools = ({
     server,
     tools,
     maxResponseChars,
+    authProvider,
     getUpdateNotice,
 }: {
     server: Server;
     tools: CollectedTool[];
     maxResponseChars: number;
+    authProvider?: AuthProvider;
     getUpdateNotice?: () => string | undefined;
 }): void => {
     const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({tools: TOOL_DEFS}));
+    server.setRequestHandler('tools/list', async () => ({tools: TOOL_DEFS}));
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request, ctx) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Args;
         const reply = (result: ToolResult): ToolResult => {
@@ -126,15 +132,36 @@ export const registerTools = ({
                 return reply(handleDescribeCommands(args, toolsByName));
             case TOOL_NAME.INVOKE_READ_COMMAND:
                 return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'read'),
+                    await handleInvokeCommand(
+                        args,
+                        toolsByName,
+                        maxResponseChars,
+                        MCP_SCOPE.READ,
+                        ctx,
+                        authProvider,
+                    ),
                 );
             case TOOL_NAME.INVOKE_WRITE_COMMAND:
                 return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'write'),
+                    await handleInvokeCommand(
+                        args,
+                        toolsByName,
+                        maxResponseChars,
+                        MCP_SCOPE.WRITE,
+                        ctx,
+                        authProvider,
+                    ),
                 );
             case TOOL_NAME.INVOKE_PRIVILEGED_COMMAND:
                 return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'privileged'),
+                    await handleInvokeCommand(
+                        args,
+                        toolsByName,
+                        maxResponseChars,
+                        MCP_SCOPE.PRIVILEGED,
+                        ctx,
+                        authProvider,
+                    ),
                 );
             default:
                 return reply(toErrorResult(`Unknown tool: ${name}`));

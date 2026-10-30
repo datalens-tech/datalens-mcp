@@ -19,8 +19,8 @@
   "main": "dist/index.js",
   "files": [
     "dist",
-    "docs",
     "README.md",
+    "docs",
     "LICENSE",
     "NOTICES"
   ],
@@ -31,7 +31,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -53,8 +53,11 @@
     ]
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/express": "^2.0.2",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "semver": "^7.8.5"
   },
@@ -62,6 +65,8 @@
     "@gravity-ui/eslint-config": "^4.3.1",
     "@gravity-ui/prettier-config": "^1.1.1",
     "@gravity-ui/tsconfig": "^1.0.0",
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.41",
     "@types/semver": "^7.8.0",

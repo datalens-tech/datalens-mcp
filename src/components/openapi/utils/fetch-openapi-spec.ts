@@ -1,4 +1,4 @@
-import {HTTP_HEADER} from '../../../constants';
+import {CONTENT_TYPE, HTTP_HEADER} from '../../../constants/http';
 import {
     MAX_OPENAPI_RESPONSE_BYTES,
     readResponseText,
@@ -17,7 +17,7 @@ export const fetchOpenAPISpec = async (config: AppConfig): Promise<OpenAPISpec> 
     return withRequestTimeout('OpenAPI schema', async (signal) => {
         const res = await fetch(config.schemaUrl, {
             headers: {
-                [HTTP_HEADER.CONTENT_TYPE]: 'application/json',
+                [HTTP_HEADER.CONTENT_TYPE]: CONTENT_TYPE.JSON,
             },
             signal,
             redirect: 'error',

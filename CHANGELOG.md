@@ -11,6 +11,9 @@
 
 ### Changed
 
+- Migrate to MCP TypeScript SDK v2 and `serveStdio`, supporting both modern and
+  legacy clients. Require Node.js 20 or newer.
+
 - Disable npm update checks and notices for Enterprise installations.
 - Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
 

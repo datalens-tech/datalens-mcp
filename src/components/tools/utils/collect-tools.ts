@@ -1,15 +1,14 @@
-import {HTTP_HEADER} from '../../../constants';
+import {CONTENT_TYPE, HTTP_HEADER} from '../../../constants/http';
 import {
     MAX_API_RESPONSE_BYTES,
     readResponseText,
     validateHttpsUrl,
     withRequestTimeout,
 } from '../../../utils';
-import type {AuthProvider} from '../../auth';
 import {INSTALLATION} from '../../config';
 import type {AppConfig} from '../../config';
 import type {JsonSchema, McpScope, OpenAPIOperation, OpenAPISpec} from '../../openapi';
-import {bundleRefs, isMcpScope} from '../../openapi';
+import {OPENAPI_EXTENSION, bundleRefs, isMcpScope} from '../../openapi';
 import {MAX_BUNDLED_SCHEMA_NODES} from '../../openapi/utils/bundle-refs';
 import type {CollectedTool} from '../types';
 
@@ -24,14 +23,14 @@ const EMPTY_OBJECT_SCHEMA: JsonSchema = {
 const toolNameFromPath = (path: string): string => path.split('/').filter(Boolean).at(-1) ?? '';
 
 // Headers that never change for the lifetime of the server. The Authorization
-// header is added per-request from the auth provider so a refreshed token is picked up.
+// header is passed explicitly for each invocation.
 const buildBaseHeaders = (config: AppConfig): Record<string, string> => {
     const headers: Record<string, string> = {
-        [HTTP_HEADER.CONTENT_TYPE]: 'application/json',
-        [HTTP_HEADER.DL_API_VERSION]: config.apiVersion,
+        [HTTP_HEADER.CONTENT_TYPE]: CONTENT_TYPE.JSON,
+        [HTTP_HEADER.DATALENS_API_VERSION]: config.apiVersion,
     };
     if (config.installation === INSTALLATION.CLOUD) {
-        headers[HTTP_HEADER.DL_ORG_ID] = config.orgId;
+        headers[HTTP_HEADER.DATALENS_ORG_ID] = config.orgId;
     }
     return headers;
 };
@@ -59,11 +58,9 @@ const buildInvokeFn =
         requestUrl: string,
         path: string,
         baseHeaders: Record<string, string>,
-        authProvider: AuthProvider,
     ): CollectedTool['invoke'] =>
-    async (args) => {
+    async (args, authHeader) => {
         validateHttpsUrl(requestUrl, 'API request URL');
-        const authHeader = await authProvider.getAuthHeader();
         const headers = authHeader
             ? {...baseHeaders, [HTTP_HEADER.AUTHORIZATION]: authHeader}
             : baseHeaders;
@@ -97,11 +94,10 @@ const buildTool = (
     components: OpenAPISpec['components'],
     config: AppConfig,
     baseHeaders: Record<string, string>,
-    authProvider: AuthProvider,
     schemaBudget: {remainingNodes: number},
 ): CollectedTool => {
     const name = toolNameFromPath(path);
-    const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+    const bodySchema = operation.requestBody?.content?.[CONTENT_TYPE.JSON]?.schema;
     const rawInputSchema = bodySchema
         ? bundleRefs(bodySchema, components?.schemas, schemaBudget)
         : EMPTY_OBJECT_SCHEMA;
@@ -113,38 +109,25 @@ const buildTool = (
         summary: operation.summary ?? name,
         description: buildDescription(operation, name),
         rawInputSchema,
-        invoke: buildInvokeFn(requestUrl, path, baseHeaders, authProvider),
+        invoke: buildInvokeFn(requestUrl, path, baseHeaders),
     };
 };
 
-export const collectTools = (
-    spec: OpenAPISpec,
-    config: AppConfig,
-    authProvider: AuthProvider,
-): CollectedTool[] => {
+export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedTool[] => {
     const baseHeaders = buildBaseHeaders(config);
     const schemaBudget = {remainingNodes: MAX_BUNDLED_SCHEMA_NODES};
 
     return Object.entries(spec.paths ?? {}).flatMap(([path, pathItem]) => {
         const operation = pathItem[HTTP_POST_METHOD.toLowerCase()];
-        if (!operation || operation['x-mcp-disabled']) {
+        if (!operation || operation[OPENAPI_EXTENSION.MCP_DISABLED]) {
             return [];
         }
-        const scope = operation['x-mcp-scope'];
+        const scope = operation[OPENAPI_EXTENSION.MCP_SCOPE];
         if (!isMcpScope(scope)) {
             return [];
         }
         return [
-            buildTool(
-                path,
-                operation,
-                scope,
-                spec.components,
-                config,
-                baseHeaders,
-                authProvider,
-                schemaBudget,
-            ),
+            buildTool(path, operation, scope, spec.components, config, baseHeaders, schemaBudget),
         ];
     });
 };
