@@ -59,32 +59,36 @@ const buildInvokeFn =
         path: string,
         baseHeaders: Record<string, string>,
     ): CollectedTool['invoke'] =>
-    async (args, authHeader) => {
+    async ({args, authHeader, signal: requestSignal}) => {
         validateHttpsUrl(requestUrl, 'API request URL');
         const headers = authHeader
             ? {...baseHeaders, [HTTP_HEADER.AUTHORIZATION]: authHeader}
             : baseHeaders;
 
-        return withRequestTimeout('DataLens API request', async (signal) => {
-            const res = await fetch(requestUrl, {
-                method: HTTP_POST_METHOD,
-                headers,
-                body: JSON.stringify(args),
-                signal,
-                redirect: 'error',
-            });
+        return withRequestTimeout(
+            'DataLens API request',
+            async (signal) => {
+                const res = await fetch(requestUrl, {
+                    method: HTTP_POST_METHOD,
+                    headers,
+                    body: JSON.stringify(args),
+                    signal,
+                    redirect: 'error',
+                });
 
-            const data = await parseResponse(res);
+                const data = await parseResponse(res);
 
-            if (!res.ok) {
-                const detail = typeof data === 'string' ? data : JSON.stringify(data);
-                throw new Error(
-                    `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
-                );
-            }
+                if (!res.ok) {
+                    const detail = typeof data === 'string' ? data : JSON.stringify(data);
+                    throw new Error(
+                        `API call to ${HTTP_POST_METHOD} ${path} failed: ${res.status} ${res.statusText}\n${detail}`,
+                    );
+                }
 
-            return data;
-        });
+                return data;
+            },
+            {signal: requestSignal},
+        );
     };
 
 const buildTool = (

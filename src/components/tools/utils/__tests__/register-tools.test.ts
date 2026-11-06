@@ -1,9 +1,11 @@
 import {Server} from '@modelcontextprotocol/server';
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, onTestFinished, vi} from 'vitest';
 
+import {testConfig} from '../../../../__tests__/helpers/config';
 import {connectInMemory, readToolJson, readToolText} from '../../../../__tests__/helpers/mcp';
 import type {McpScope} from '../../../openapi';
 import type {CollectedTool} from '../../types';
+import {collectTools} from '../collect-tools';
 import {registerTools} from '../register-tools';
 
 // Expected public routing is deliberately independent of the implementation's map.
@@ -107,6 +109,51 @@ describe('tool discovery', () => {
             {command_name: 'missing', error: 'Unknown command: missing'},
         ]);
     });
+
+    it('describes each command once, preserving first occurrence order', async () => {
+        const {client} = await setup();
+        const result = await client.callTool({
+            name: 'describe_commands',
+            arguments: {command_names: ['write', 'read', 'write', 'missing', 'missing', 'read']},
+        });
+
+        expect(result.isError).not.toBe(true);
+        expect(
+            readToolJson(result).map((command: {command_name: string}) => command.command_name),
+        ).toEqual(['write', 'read', 'missing']);
+    });
+
+    it('accepts exactly 20 command names and advertises the limit', async () => {
+        const {client} = await setup();
+        const names = Array.from({length: 20}, (_, index) => `command-${index}`);
+        const result = await client.callTool({
+            name: 'describe_commands',
+            arguments: {command_names: names},
+        });
+
+        expect(result.isError).not.toBe(true);
+        expect(readToolJson(result)).toHaveLength(20);
+        const {tools} = await client.listTools();
+        expect(tools.find(({name}) => name === 'describe_commands')?.inputSchema).toMatchObject({
+            properties: {command_names: {maxItems: 20}},
+        });
+    });
+
+    it.each([
+        {kind: 'unique', names: Array.from({length: 21}, (_, index) => `command-${index}`)},
+        {kind: 'duplicate', names: Array(21).fill('read')},
+    ])('rejects more than 20 $kind names before deduplication', async ({names}) => {
+        const {client, commands, getAuthHeader} = await setup();
+        const result = await client.callTool({
+            name: 'describe_commands',
+            arguments: {command_names: names},
+        });
+
+        expect(result.isError).toBe(true);
+        expect(readToolText(result)).toBe('describe_commands accepts at most 20 command names');
+        expect(getAuthHeader).not.toHaveBeenCalled();
+        for (const command of commands) expect(command.invoke).not.toHaveBeenCalled();
+    });
 });
 
 describe('scope enforcement', () => {
@@ -120,7 +167,11 @@ describe('scope enforcement', () => {
         expect(result.isError).not.toBe(true);
         expect(
             commands.find((command) => command.scope === scope)?.invoke,
-        ).toHaveBeenCalledExactlyOnceWith({id: 'entry'}, 'Bearer token');
+        ).toHaveBeenCalledExactlyOnceWith({
+            args: {id: 'entry'},
+            authHeader: 'Bearer token',
+            signal: expect.any(AbortSignal),
+        });
     });
 
     const forbiddenRoutes = routes.flatMap(({scope: commandScope}) =>
@@ -173,8 +224,8 @@ describe('invocation credentials', () => {
         await client.callTool(readCall);
 
         expect(commands[0].invoke.mock.calls).toEqual([
-            [{}, 'Bearer first'],
-            [{}, 'Bearer refreshed'],
+            [{args: {}, authHeader: 'Bearer first', signal: expect.any(AbortSignal)}],
+            [{args: {}, authHeader: 'Bearer refreshed', signal: expect.any(AbortSignal)}],
         ]);
         expect(getAuthHeader).toHaveBeenCalledTimes(2);
     });
@@ -189,6 +240,84 @@ describe('invocation credentials', () => {
         expect(readToolText(result)).toBe('Token refresh failed');
         expect(commands[0].invoke).not.toHaveBeenCalled();
     });
+
+    it('skips a cancelled API request after shared credentials arrive, without cancelling its peer', async () => {
+        const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ok: true}));
+        onTestFinished(() => fetch.mockRestore());
+        const tools = collectTools(
+            {paths: {'/rpc/read': {post: {'x-mcp-scope': 'read'}}}},
+            testConfig,
+        );
+        const {client, getAuthHeader} = await setup({tools});
+        let release!: (header: string) => void;
+        const credentials = new Promise<string>((resolve) => {
+            release = resolve;
+        });
+        getAuthHeader.mockReturnValue(credentials);
+        const controller = new AbortController();
+        const cancelledCall = client.callTool(readCall, {signal: controller.signal});
+        const rejected = expect(cancelledCall).rejects.toThrow();
+        const activeCall = client.callTool(readCall);
+        try {
+            await vi.waitFor(() => expect(getAuthHeader).toHaveBeenCalledTimes(2));
+            controller.abort();
+            await rejected;
+        } finally {
+            release('Bearer shared');
+        }
+
+        expect((await activeCall).isError).not.toBe(true);
+        expect(fetch).toHaveBeenCalledExactlyOnceWith(
+            `${testConfig.apiUrl}/rpc/read`,
+            expect.objectContaining({
+                headers: expect.objectContaining({Authorization: 'Bearer shared'}),
+            }),
+        );
+    });
+});
+
+describe('invocation cancellation', () => {
+    it.each(['cancel', 'disconnect'] as const)(
+        'aborts the invocation signal on client %s',
+        async (action) => {
+            const command = createCommand();
+            let started!: () => void;
+            const ready = new Promise<void>((resolve) => {
+                started = resolve;
+            });
+            let aborted!: () => void;
+            const cancelled = new Promise<void>((resolve) => {
+                aborted = resolve;
+            });
+            command.invoke.mockImplementation(
+                ({signal}) =>
+                    new Promise((_resolve, reject) => {
+                        if (!signal) throw new Error('Missing invocation signal');
+                        signal.addEventListener(
+                            'abort',
+                            () => {
+                                aborted();
+                                reject(signal.reason);
+                            },
+                            {once: true},
+                        );
+                        started();
+                    }),
+            );
+            const {client} = await setup({tools: [command]});
+            const controller = new AbortController();
+            const result = client.callTool(readCall, {signal: controller.signal});
+            const rejected = expect(result).rejects.toThrow();
+            await ready;
+
+            if (action === 'cancel') controller.abort();
+            else await client.close();
+
+            await rejected;
+            await cancelled;
+            expect(command.invoke.mock.calls[0][0].signal?.aborted).toBe(true);
+        },
+    );
 });
 
 describe('tool results', () => {

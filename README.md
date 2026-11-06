@@ -42,7 +42,7 @@ client's server configuration.
 
 ## Run
 
-Requires **Node.js 20 or newer**. The server uses MCP SDK v2, supporting both
+Requires **Node.js 20.3 or newer**. The server uses MCP SDK v2, supporting both
 the 2026-07-28 protocol and older clients.
 
 The setup guides use `npx` to fetch the published package on demand, without a

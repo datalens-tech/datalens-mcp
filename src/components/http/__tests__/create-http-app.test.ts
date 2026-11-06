@@ -116,6 +116,84 @@ describe.each(['legacy', 'modern'] as const)('HTTP MCP (%s)', (era) => {
         expect(result.isError).toBe(true);
         expect(api).not.toHaveBeenCalled();
     });
+
+    // Legacy stateless notifications use a separate server instance and cannot cancel
+    // an earlier POST. Closing that POST still cancels its request-scoped work.
+    it.each(era === 'modern' ? ['cancel', 'disconnect'] : ['disconnect'])(
+        'cancels the PAPI request on HTTP client %s',
+        async (action) => {
+            const {connect, api, url} = await startTestServer();
+            let started!: (signal: AbortSignal) => void;
+            const ready = new Promise<AbortSignal>((resolve) => {
+                started = resolve;
+            });
+            let release!: () => void;
+            api.mockImplementation(
+                (_url, options) =>
+                    new Promise<Response>((resolve, reject) => {
+                        const signal = options?.signal;
+                        if (!signal) throw new Error('Missing PAPI signal');
+                        release = () => resolve(Response.json({ok: true}));
+                        signal.addEventListener('abort', () => reject(signal.reason), {once: true});
+                        started(signal);
+                    }),
+            );
+            const controller = new AbortController();
+            const result =
+                action === 'cancel'
+                    ? (await connect(era, 'OAuth alice')).callTool(invokeRead, {
+                          signal: controller.signal,
+                      })
+                    : nativeFetch(url, {
+                          method: 'POST',
+                          signal: controller.signal,
+                          headers: {
+                              'content-type': 'application/json',
+                              accept: 'application/json, text/event-stream',
+                              ...(era === 'modern'
+                                  ? {
+                                        'mcp-protocol-version': '2026-07-28',
+                                        'mcp-method': 'tools/call',
+                                        'mcp-name': 'invoke_read_command',
+                                    }
+                                  : {}),
+                          },
+                          body: JSON.stringify({
+                              jsonrpc: '2.0',
+                              id: 1,
+                              method: 'tools/call',
+                              params: {
+                                  ...invokeRead,
+                                  ...(era === 'modern'
+                                      ? {
+                                            _meta: {
+                                                'io.modelcontextprotocol/protocolVersion':
+                                                    '2026-07-28',
+                                                'io.modelcontextprotocol/clientCapabilities': {},
+                                            },
+                                        }
+                                      : {}),
+                              },
+                          }),
+                      }).then((response) => response.text());
+            const settled = result.catch((error: unknown) => error);
+            const apiSignal = await Promise.race([
+                ready,
+                settled.then((value) => {
+                    throw new Error(
+                        `MCP request completed before PAPI was called: ${String(value)}`,
+                    );
+                }),
+            ]);
+            try {
+                controller.abort();
+                expect(await settled).toBeInstanceOf(Error);
+                await vi.waitFor(() => expect(apiSignal.aborted).toBe(true));
+            } finally {
+                release();
+            }
+        },
+    );
 });
 
 describe('HTTP routing', () => {

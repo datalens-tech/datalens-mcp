@@ -3,6 +3,8 @@ import type {Tool} from '@modelcontextprotocol/server';
 import type {McpScope} from '../../openapi';
 import {MCP_SCOPE} from '../../openapi';
 
+export const MAX_DESCRIBE_COMMANDS = 20;
+
 export const TOOL_NAME = {
     LIST_COMMANDS: 'list_commands',
     DESCRIBE_COMMANDS: 'describe_commands',
@@ -56,6 +58,7 @@ export const TOOL_DEFS: Tool[] = [
                 command_names: {
                     type: 'array',
                     items: {type: 'string'},
+                    maxItems: MAX_DESCRIBE_COMMANDS,
                     description: 'Names of the commands to describe.',
                 },
             },

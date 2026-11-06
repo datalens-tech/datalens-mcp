@@ -261,7 +261,10 @@ describe('Enterprise auth', () => {
         );
         expect(commands.map(({name}) => name)).toEqual(['getEntry']);
         expect(
-            await commands[0].invoke({entryId: 'entry'}, await provider.getAuthHeader()),
+            await commands[0].invoke({
+                args: {entryId: 'entry'},
+                authHeader: await provider.getAuthHeader(),
+            }),
         ).toEqual({
             id: 'entry',
         });

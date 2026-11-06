@@ -3,15 +3,27 @@ const FETCH_TIMEOUT_MS = 30_000;
 export const withRequestTimeout = async <T>(
     label: string,
     fn: (signal: AbortSignal) => Promise<T>,
-    timeoutMs = FETCH_TIMEOUT_MS,
+    {
+        timeoutMs = FETCH_TIMEOUT_MS,
+        signal: requestSignal,
+    }: {
+        timeoutMs?: number;
+        signal?: AbortSignal;
+    } = {},
 ): Promise<T> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = requestSignal
+        ? AbortSignal.any([requestSignal, controller.signal])
+        : controller.signal;
+    const timeoutError = new Error(`Request timed out after ${timeoutMs}ms: ${label}`);
+    const timer = setTimeout(() => controller.abort(timeoutError), timeoutMs);
     try {
-        return await fn(controller.signal);
+        signal.throwIfAborted();
+        return await fn(signal);
     } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-            throw new Error(`Request timed out after ${timeoutMs}ms: ${label}`);
+        // Reading a fetch response body may throw AbortError instead of the abort reason.
+        if (signal.aborted && signal.reason === timeoutError) {
+            throw timeoutError;
         }
         throw err;
     } finally {

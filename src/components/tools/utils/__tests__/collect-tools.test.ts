@@ -34,7 +34,7 @@ describe('collectTools', () => {
                 {paths: {'/rpc/test': {post: {'x-mcp-scope': 'read'}}}},
                 installationConfig,
             );
-            await tool.invoke({});
+            await tool.invoke({args: {}});
             const headers = fetchMock.mock.lastCall![1].headers;
             if (installationConfig.installation === INSTALLATION.CLOUD) {
                 expect(headers['x-dl-org-id']).toBe('org1');
