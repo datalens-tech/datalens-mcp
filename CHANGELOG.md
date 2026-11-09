@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+### Changed
+
+- Migrate to MCP TypeScript SDK v2 and `serveStdio`, supporting both modern and
+  legacy clients. Require Node.js 20.3 or newer.
+- Limit `describe_commands` to 20 command names per request and deduplicate names.
+
+### Fixed
+
+- Propagate MCP request cancellation to DataLens API requests.
+
 ## 0.3.0
 
 ### Added
@@ -10,9 +22,6 @@
   and include them in the npm package.
 
 ### Changed
-
-- Migrate to MCP TypeScript SDK v2 and `serveStdio`, supporting both modern and
-  legacy clients. Require Node.js 20.3 or newer.
 
 - Disable npm update checks and notices for Enterprise installations.
 - Reject unsupported `DATALENS_INSTALLATION` values instead of silently selecting Cloud.
