@@ -2,7 +2,8 @@
   "extends": "@gravity-ui/tsconfig/tsconfig",
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

@@ -3,3 +3,8 @@ export const INSTALLATION = {
     INTERNAL: 'internal',
     ENTERPRISE: 'enterprise',
 } as const;
+
+export const MCP_TRANSPORT = {
+    STDIO: 'stdio',
+    HTTP: 'http',
+} as const;

@@ -1,6 +1,7 @@
-import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {test} from 'node:test';
+
 import {
     checkRegistry,
     validatePack,
@@ -29,7 +30,8 @@ const files = [
     'LICENSE',
     'NOTICES',
     'dist/index.js',
-    'dist/app.js',
+    'dist/http.js',
+    'dist/stdio.js',
     'dist/utils/get-package-version.js',
 ];
 const pack = {
@@ -94,7 +96,14 @@ test('accepts the package artifact and rejects unexpected content', () => {
 });
 
 test('rejects missing entrypoints, setup guides and invalid artifact metadata', () => {
-    for (const path of ['dist/index.js', 'docs/cloud.md', 'docs/internal.md', 'docs/enterprise.md']) {
+    for (const path of [
+        'dist/index.js',
+        'dist/http.js',
+        'dist/stdio.js',
+        'docs/cloud.md',
+        'docs/internal.md',
+        'docs/enterprise.md',
+    ]) {
         assert.throws(
             () =>
                 validatePack(

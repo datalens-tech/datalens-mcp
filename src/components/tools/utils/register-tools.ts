@@ -1,9 +1,10 @@
-import type {Server} from '@modelcontextprotocol/sdk/server/index.js';
-import {CallToolRequestSchema, ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import type {Server, ServerContext} from '@modelcontextprotocol/server';
 
 import {truncateText} from '../../../utils';
+import type {AuthProvider} from '../../auth';
 import type {McpScope} from '../../openapi';
-import {INVOKE_TOOL_BY_SCOPE, TOOL_DEFS, TOOL_NAME} from '../constants';
+import {MCP_SCOPE} from '../../openapi';
+import {INVOKE_TOOL_BY_SCOPE, MAX_DESCRIBE_COMMANDS, TOOL_DEFS, TOOL_NAME} from '../constants';
 import type {CollectedTool} from '../types';
 
 type ToolResult = {content: {type: 'text'; text: string}[]; isError?: true};
@@ -36,11 +37,18 @@ const handleDescribeCommands = (
     toolsByName: Map<string, CollectedTool>,
 ): ToolResult => {
     const commandNames = args['command_names'];
+
     if (!Array.isArray(commandNames)) {
         return toErrorResult('describe_commands requires a command_names array');
     }
 
-    const results = commandNames.map((cmdName) => {
+    if (commandNames.length > MAX_DESCRIBE_COMMANDS) {
+        return toErrorResult(
+            `describe_commands accepts at most ${MAX_DESCRIBE_COMMANDS} command names`,
+        );
+    }
+
+    const results = [...new Set(commandNames)].map((cmdName) => {
         const tool = toolsByName.get(String(cmdName));
         if (!tool) {
             return {command_name: cmdName, error: `Unknown command: ${cmdName}`};
@@ -57,12 +65,21 @@ const handleDescribeCommands = (
     return toToolResult(results);
 };
 
-const handleInvokeCommand = async (
-    args: Args,
-    toolsByName: Map<string, CollectedTool>,
-    maxResponseChars: number,
-    scope: McpScope,
-): Promise<ToolResult> => {
+const handleInvokeCommand = async ({
+    args,
+    toolsByName,
+    maxResponseChars,
+    scope,
+    ctx,
+    authProvider,
+}: {
+    args: Args;
+    toolsByName: Map<string, CollectedTool>;
+    maxResponseChars: number;
+    scope: McpScope;
+    ctx: ServerContext;
+    authProvider?: AuthProvider;
+}): Promise<ToolResult> => {
     const commandName = args['command_name'];
     if (typeof commandName !== 'string' || !commandName) {
         return toErrorResult('A scoped invocation requires a command_name string');
@@ -80,7 +97,8 @@ const handleInvokeCommand = async (
     const parameters = (args['parameters'] ?? {}) as Args;
 
     try {
-        const data = await tool.invoke(parameters);
+        const authHeader = await authProvider?.getAuthHeader(ctx.http?.req);
+        const data = await tool.invoke({args: parameters, authHeader, signal: ctx.mcpReq.signal});
         return toToolResult({
             trust: 'untrusted_data',
             data: truncateText(
@@ -99,20 +117,26 @@ export const registerTools = ({
     server,
     tools,
     maxResponseChars,
+    authProvider,
     getUpdateNotice,
 }: {
     server: Server;
     tools: CollectedTool[];
     maxResponseChars: number;
+    authProvider?: AuthProvider;
     getUpdateNotice?: () => string | undefined;
 }): void => {
     const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({tools: TOOL_DEFS}));
+    server.setRequestHandler('tools/list', async () => ({tools: TOOL_DEFS}));
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request, ctx) => {
         const {name, arguments: rawArgs} = request.params;
         const args = (rawArgs ?? {}) as Args;
+
+        const invoke = (scope: McpScope) =>
+            handleInvokeCommand({args, toolsByName, maxResponseChars, scope, ctx, authProvider});
+
         const reply = (result: ToolResult): ToolResult => {
             const notice = getUpdateNotice?.();
             if (notice) result.content.push({type: 'text', text: notice});
@@ -125,17 +149,11 @@ export const registerTools = ({
             case TOOL_NAME.DESCRIBE_COMMANDS:
                 return reply(handleDescribeCommands(args, toolsByName));
             case TOOL_NAME.INVOKE_READ_COMMAND:
-                return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'read'),
-                );
+                return reply(await invoke(MCP_SCOPE.READ));
             case TOOL_NAME.INVOKE_WRITE_COMMAND:
-                return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'write'),
-                );
+                return reply(await invoke(MCP_SCOPE.WRITE));
             case TOOL_NAME.INVOKE_PRIVILEGED_COMMAND:
-                return reply(
-                    await handleInvokeCommand(args, toolsByName, maxResponseChars, 'privileged'),
-                );
+                return reply(await invoke(MCP_SCOPE.PRIVILEGED));
             default:
                 return reply(toErrorResult(`Unknown tool: ${name}`));
         }
