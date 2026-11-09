@@ -6,10 +6,10 @@ import {CONTENT_TYPE, HTTP_HEADER} from '../../constants/http';
 import {getPackageVersion} from '../../utils';
 import {INSTALLATION} from '../config';
 import {createMcpServer} from '../mcp';
-import {loadTools} from '../tools';
 
 import type {HttpConfig} from './config';
 import {HTTP_HOST, HTTP_PATH, MAX_REQUEST_BODY_BYTES} from './constants';
+import {createToolCatalog} from './create-tool-catalog';
 import {handleError, notFound, requestLogger} from './middlewares';
 
 export const createHttpApp = async (config: HttpConfig) => {
@@ -17,13 +17,13 @@ export const createHttpApp = async (config: HttpConfig) => {
         throw new Error('HTTP transport requires DATALENS_INSTALLATION=internal');
     }
 
-    const tools = await loadTools(config);
+    const catalog = await createToolCatalog(config);
     const packageVersion = getPackageVersion();
 
     const handler = createMcpHandler(() =>
         createMcpServer({
             packageVersion,
-            tools,
+            tools: catalog.getTools(),
             maxResponseChars: config.maxResponseChars,
             authProvider: {
                 getAuthHeader: (request) =>

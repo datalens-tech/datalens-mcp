@@ -28,11 +28,12 @@ const spec = {
 };
 
 export const startTestServer = async () => {
+    const schema = vi.fn(async () => Response.json(spec));
     const api = vi
         .fn<(url: string, options?: RequestInit) => Promise<Response>>()
         .mockImplementation(async () => Response.json({ok: true}));
     const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
-        if (url === httpConfig.schemaUrl) return Response.json(spec);
+        if (url === httpConfig.schemaUrl) return schema();
         if (!url.startsWith(`${httpConfig.apiUrl}/rpc/`))
             throw new Error(`Unexpected fetch: ${url}`);
         return api(url, options);
@@ -68,5 +69,5 @@ export const startTestServer = async () => {
             body,
         });
 
-    return {url, api, fetchMock, connect, post};
+    return {url, api, schema, fetchMock, connect, post};
 };

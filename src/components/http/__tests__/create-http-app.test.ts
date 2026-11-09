@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it, onTestFinished, vi} from 'vitest';
 
 import {readToolJson} from '../../../__tests__/helpers/mcp';
 import {createHttpApp} from '../create-http-app';
@@ -9,7 +9,7 @@ const invokeRead = {name: 'invoke_read_command', arguments: {command_name: 'read
 const listToolsBody = JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'});
 
 describe.each(['legacy', 'modern'] as const)('HTTP MCP (%s)', (era) => {
-    it('serves the catalog anonymously and fetches the schema only once', async () => {
+    it('serves the catalog anonymously without reloading the schema for each request', async () => {
         const {connect, api, fetchMock} = await startTestServer();
         const first = await connect(era);
         const second = await connect(era);
@@ -28,6 +28,73 @@ describe.each(['legacy', 'modern'] as const)('HTTP MCP (%s)', (era) => {
         expect(readToolJson(described)[0]).toMatchObject({command_name: 'read', scope: 'read'});
         expect(api).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledExactlyOnceWith(httpConfig.schemaUrl, expect.any(Object));
+    });
+
+    it('uses refreshed schemas and scopes on subsequent requests from the same client', async () => {
+        const timers = vi.spyOn(globalThis, 'setTimeout');
+        onTestFinished(() => {
+            timers.mockRestore();
+        });
+        const {connect, schema, api} = await startTestServer();
+        const client = await connect(era, 'OAuth alice');
+        expect(readToolJson(await client.callTool({name: 'list_commands'}))).toHaveLength(3);
+        schema.mockImplementation(async () =>
+            Response.json({
+                paths: {
+                    '/rpc/read': {
+                        post: {
+                            'x-mcp-scope': 'write',
+                            requestBody: {
+                                content: {
+                                    'application/json': {
+                                        schema: {
+                                            type: 'object',
+                                            properties: {revision: {type: 'string'}},
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '/rpc/newCommand': {post: {'x-mcp-scope': 'read'}},
+                },
+            }),
+        );
+
+        // Trigger only the catalog timer; advancing fake time also affects HTTP socket timers.
+        const timerIndex = timers.mock.calls.findIndex(([, delay]) => delay === 30 * 60 * 1000);
+        expect(timerIndex).toBeGreaterThanOrEqual(0);
+        clearTimeout(timers.mock.results[timerIndex].value);
+        timers.mock.calls[timerIndex][0]();
+
+        await vi.waitFor(async () => {
+            expect(readToolJson(await client.callTool({name: 'list_commands'}))).toEqual([
+                expect.objectContaining({command_name: 'read', scope: 'write'}),
+                expect.objectContaining({command_name: 'newCommand', scope: 'read'}),
+            ]);
+        });
+        const described = readToolJson(
+            await client.callTool({
+                name: 'describe_commands',
+                arguments: {command_names: ['read', 'privileged']},
+            }),
+        );
+        expect(described[0]).toMatchObject({
+            inputSchema: {properties: {revision: {type: 'string'}}},
+        });
+        expect(described[1]).toMatchObject({error: 'Unknown command: privileged'});
+        expect((await client.callTool(invokeRead)).isError).toBe(true);
+        expect(api).not.toHaveBeenCalled();
+        expect(
+            (
+                await client.callTool({
+                    name: 'invoke_write_command',
+                    arguments: {command_name: 'read'},
+                })
+            ).isError,
+        ).not.toBe(true);
+        expect(api).toHaveBeenCalledOnce();
+        expect(new Headers(api.mock.calls[0][1]?.headers).get('authorization')).toBe('OAuth alice');
     });
 
     it.each(['read', 'write', 'privileged'])(

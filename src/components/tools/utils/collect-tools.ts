@@ -91,15 +91,23 @@ const buildInvokeFn =
         );
     };
 
-const buildTool = (
-    path: string,
-    operation: OpenAPIOperation,
-    scope: McpScope,
-    components: OpenAPISpec['components'],
-    config: AppConfig,
-    baseHeaders: Record<string, string>,
-    schemaBudget: {remainingNodes: number},
-): CollectedTool => {
+const buildTool = ({
+    path,
+    operation,
+    scope,
+    components,
+    config,
+    baseHeaders,
+    schemaBudget,
+}: {
+    path: string;
+    operation: OpenAPIOperation;
+    scope: McpScope;
+    components: OpenAPISpec['components'];
+    config: AppConfig;
+    baseHeaders: Record<string, string>;
+    schemaBudget: {remainingNodes: number};
+}): CollectedTool => {
     const name = toolNameFromPath(path);
     const bodySchema = operation.requestBody?.content?.[CONTENT_TYPE.JSON]?.schema;
     const rawInputSchema = bodySchema
@@ -131,7 +139,15 @@ export const collectTools = (spec: OpenAPISpec, config: AppConfig): CollectedToo
             return [];
         }
         return [
-            buildTool(path, operation, scope, spec.components, config, baseHeaders, schemaBudget),
+            buildTool({
+                path,
+                operation,
+                scope,
+                components: spec.components,
+                config,
+                baseHeaders,
+                schemaBudget,
+            }),
         ];
     });
 };
