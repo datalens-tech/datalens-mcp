@@ -15,7 +15,8 @@ const requiredFiles = [
     'LICENSE',
     'NOTICES',
     'dist/index.js',
-    'dist/app.js',
+    'dist/http.js',
+    'dist/stdio.js',
     'dist/utils/get-package-version.js',
 ];
 
